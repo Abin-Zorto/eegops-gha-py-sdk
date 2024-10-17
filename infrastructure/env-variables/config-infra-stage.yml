@@ -14,6 +14,10 @@ variables:
   enable_monitoring: false
   ds_data: amlws-assets/data/stage.yml
   ds_environment: automl
+  environment_name: automl
+  environment_description: automl
+  environment_path: amlws-assets/environment/automl-env.yml
+  build_type: conda
   pipeline_file: $(Build.SourcesDirectory)/amlws-assets/pipelinejobs/stage-test.yml
   virtual_environment: azure
   modelname: automl

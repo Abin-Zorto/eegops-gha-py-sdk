@@ -34,20 +34,20 @@ jobs:
     needs: get-config
     uses: AbinZorto/ghapysdk-templates/.github/workflows/register-environment.yml@main
     with:
-      resource_group: ${{ needs.get-config.outputs.resource_group }}
-      workspace_name: ${{ needs.get-config.outputs.aml_workspace }}
-      environment_file: amlws-assets/environment/automl-env.yml
-      conda_file: amlws-assets/environment/automl-conda.yml
+      environment_name: ${{ needs.get-config.outputs.environment_name }}
+      environment_description: ${{ needs.get-config.outputs.environment_description }}
+      environment_path: ${{ needs.get-config.outputs.environment_path }}
+      build_type: ${{ needs.get-config.outputs.build_type }}
     secrets:
       creds: ${{secrets.AZURE_CREDENTIALS}}
-  register-dataset:
+  register-data-asset:
     needs: get-config
-    uses: AbinZorto/ghapysdk-templates/.github/workflows/register-dataset.yml@main
+    uses: AbinZorto/ghapysdk-templates/.github/workflows/register-data-asset.yml@main
     with:
-      resource_group: ${{ needs.get-config.outputs.resource_group }}
-      workspace_name: ${{ needs.get-config.outputs.aml_workspace }}
-      name: data
-      data_file: amlws-assets/data/data.yml
+      data_name: ${{ needs.get-config.outputs.data_name }}
+      data_path: ${{ needs.get-config.outputs.data_path }}
+      data_type: ${{ needs.get-config.outputs.data_type }}
+      data_description: ${{ needs.get-config.outputs.data_description }}
     secrets:
       creds: ${{secrets.AZURE_CREDENTIALS}}
   create-compute:
@@ -59,12 +59,10 @@ jobs:
       min_instances: 0
       max_instances: 4
       cluster_tier: low_priority
-      resource_group: ${{ needs.get-config.outputs.resource_group }}
-      workspace_name: ${{ needs.get-config.outputs.aml_workspace }}
     secrets:
       creds: ${{secrets.AZURE_CREDENTIALS}}
   run-model-training-pipeline:
-    needs: [get-config, register-environment, register-dataset, create-compute]
+    needs: [get-config, register-environment, register-data-asset, create-compute]
     uses: AbinZorto/ghapysdk-templates/.github/workflows/run-pipeline.yml@main
     with:
       experiment_name: "dev-taxi-fare-training"
