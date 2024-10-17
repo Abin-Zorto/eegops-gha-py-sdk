@@ -1,0 +1,42 @@
+name: 'Register Environment'
+description: 'Registers an environment in Azure Machine Learning'
+inputs:
+  environment_name:
+    description: 'Name of the environment'
+    required: true
+  environment_description:
+    description: 'Description of the environment'
+    required: true
+  environment_path:
+    description: 'Path to the environment file'
+    required: true
+  build_type:
+    description: 'Build type for the environment'
+    required: true
+  azure_credentials:
+    description: 'Azure credentials'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install azure-ai-ml azure-identity
+      shell: bash
+
+    - name: Register environment
+      env:
+        AZURE_CREDENTIALS: ${{ inputs.azure_credentials }}
+      run: |
+        python ${{ github.action_path }}/register_environment.py \
+          --environment_name "${{ inputs.environment_name }}" \
+          --environment_description "${{ inputs.environment_description }}" \
+          --environment_path "${{ inputs.environment_path }}" \
+          --build_type "${{ inputs.build_type }}"
+      shell: bash

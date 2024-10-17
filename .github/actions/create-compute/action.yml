@@ -1,0 +1,46 @@
+name: 'Create Compute'
+description: 'Creates a compute cluster in Azure Machine Learning'
+inputs:
+  cluster_name:
+    description: 'Name of the compute cluster'
+    required: true
+  size:
+    description: 'VM size for the compute cluster'
+    required: true
+  min_instances:
+    description: 'Minimum number of instances'
+    required: true
+  max_instances:
+    description: 'Maximum number of instances'
+    required: true
+  cluster_tier:
+    description: 'Tier of the compute cluster'
+    required: true
+  azure_credentials:
+    description: 'Azure credentials'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install azure-ai-ml azure-identity
+      shell: bash
+
+    - name: Create compute
+      env:
+        AZURE_CREDENTIALS: ${{ inputs.azure_credentials }}
+      run: |
+        python ${{ github.action_path }}/create_compute.py \
+          --cluster_name "${{ inputs.cluster_name }}" \
+          --size "${{ inputs.size }}" \
+          --min_instances "${{ inputs.min_instances }}" \
+          --max_instances "${{ inputs.max_instances }}" \
+          --cluster_tier "${{ inputs.cluster_tier }}"
+      shell: bash
