@@ -13,6 +13,7 @@ inputs:
   build_type:
     description: 'Build type for the environment (docker or conda)'
     required: true
+    default: 'conda'
   base_image:
     description: 'Base image for the environment'
     default: 'mcr.microsoft.com/azureml/openmpi3.1.2-ubuntu18.04'
