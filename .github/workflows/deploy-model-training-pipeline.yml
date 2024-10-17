@@ -34,7 +34,7 @@ jobs:
     needs: set-env-branch
     uses: AbinZorto/ghapysdk-templates/.github/workflows/install-requirements.yml@main
   register-environment:
-    needs: get-config
+    needs: [get-config, install-requirements]
     uses: AbinZorto/ghapysdk-templates/.github/workflows/register-environment.yml@main
     with:
       environment_name: ${{ needs.get-config.outputs.environment_name }}
@@ -44,7 +44,7 @@ jobs:
     secrets:
       creds: ${{secrets.AZURE_CREDENTIALS}}
   register-data-asset:
-    needs: get-config
+    needs: [get-config, install-requirements]
     uses: AbinZorto/ghapysdk-templates/.github/workflows/register-data-asset.yml@main
     with:
       data_name: ${{ needs.get-config.outputs.data_name }}
@@ -54,7 +54,7 @@ jobs:
     secrets:
       creds: ${{secrets.AZURE_CREDENTIALS}}
   create-compute:
-    needs: [get-config]
+    needs: [get-config, install-requirements]
     uses: AbinZorto/ghapysdk-templates/.github/workflows/create-compute.yml@main
     with:
       cluster_name: cpu-cluster
