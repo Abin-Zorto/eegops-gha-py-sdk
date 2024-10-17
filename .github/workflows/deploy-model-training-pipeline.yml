@@ -44,9 +44,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install and cache dependencies
-        uses: ./.github/actions/install-and-cache-deps
+        uses: ./.github/actions/install-and-cache-deps.yml
       - name: Register environment
-        uses: ./.github/actions/register-environment
+        uses: ./.github/actions/register-environment.yml
         with:
           environment_name: ${{ needs.get-config.outputs.environment_name }}
           environment_description: ${{ needs.get-config.outputs.environment_description }}
@@ -54,7 +54,7 @@ jobs:
           build_type: ${{ needs.get-config.outputs.build_type }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Register data asset
-        uses: ./.github/actions/register-data-asset
+        uses: ./.github/actions/register-data-asset.yml
         with:
           data_name: ${{ needs.get-config.outputs.data_name }}
           data_path: ${{ needs.get-config.outputs.data_path }}
@@ -62,7 +62,7 @@ jobs:
           data_description: ${{ needs.get-config.outputs.data_description }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Create compute
-        uses: ./.github/actions/create-compute
+        uses: ./.github/actions/create-compute.yml
         with:
           cluster_name: cpu-cluster
           size: Standard_DS3_v2
@@ -71,7 +71,7 @@ jobs:
           cluster_tier: low_priority
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Run model training pipeline
-        uses: ./.github/actions/run-pipeline
+        uses: ./.github/actions/run-pipeline.yml
         with:
           experiment_name: "dev-taxi-fare-training"
           data_name: "data"
