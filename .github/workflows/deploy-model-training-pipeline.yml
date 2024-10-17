@@ -2,8 +2,10 @@ name: deploy-model-training-pipeline
 
 on:
   workflow_dispatch:
+
 jobs:
   set-env-branch:
+    # This job remains unchanged
     runs-on: ubuntu-latest
     outputs:
       config-file: ${{ steps.set-output-defaults.outputs.config-file }}
@@ -20,60 +22,114 @@ jobs:
         name: setdevbranch
         if: ${{ github.ref == 'refs/heads/develop'}}
         run: echo "config_env=infrastructure/env-variables/config-infra-dev.yml" >> $GITHUB_ENV;
-        
       - id: set-output-defaults
         name: set-output-defaults
         run: |
           echo "config-file=$config_env" >> $GITHUB_OUTPUT;
+
   get-config:
+    # This job remains unchanged
     needs: set-env-branch
     uses: Azure/mlops-templates/.github/workflows/read-yaml.yml@main
     with:
       file_name: ${{ needs.set-env-branch.outputs.config-file}}
+
   install-requirements:
-    needs: set-env-branch
-    uses: AbinZorto/ghapysdk-templates/.github/workflows/install-requirements.yml@main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
   register-environment:
     needs: [get-config, install-requirements]
-    uses: AbinZorto/ghapysdk-templates/.github/workflows/register-environment.yml@main
-    with:
-      environment_name: ${{ needs.get-config.outputs.environment_name }}
-      environment_description: ${{ needs.get-config.outputs.environment_description }}
-      environment_path: ${{ needs.get-config.outputs.environment_path }}
-      build_type: ${{ needs.get-config.outputs.build_type }}
-    secrets:
-      creds: ${{secrets.AZURE_CREDENTIALS}}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+      - name: Register environment
+        uses: AbinZorto/ghapysdk-templates/.github/workflows/register-environment.yml@main
+        with:
+          environment_name: ${{ needs.get-config.outputs.environment_name }}
+          environment_description: ${{ needs.get-config.outputs.environment_description }}
+          environment_path: ${{ needs.get-config.outputs.environment_path }}
+          build_type: ${{ needs.get-config.outputs.build_type }}
+        env:
+          AZURE_CREDENTIALS: ${{secrets.AZURE_CREDENTIALS}}
+
   register-data-asset:
     needs: [get-config, install-requirements]
-    uses: AbinZorto/ghapysdk-templates/.github/workflows/register-data-asset.yml@main
-    with:
-      data_name: ${{ needs.get-config.outputs.data_name }}
-      data_path: ${{ needs.get-config.outputs.data_path }}
-      data_type: ${{ needs.get-config.outputs.data_type }}
-      data_description: ${{ needs.get-config.outputs.data_description }}
-    secrets:
-      creds: ${{secrets.AZURE_CREDENTIALS}}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+      - name: Register data asset
+        uses: AbinZorto/ghapysdk-templates/.github/workflows/register-data-asset.yml@main
+        with:
+          data_name: ${{ needs.get-config.outputs.data_name }}
+          data_path: ${{ needs.get-config.outputs.data_path }}
+          data_type: ${{ needs.get-config.outputs.data_type }}
+          data_description: ${{ needs.get-config.outputs.data_description }}
+        env:
+          AZURE_CREDENTIALS: ${{secrets.AZURE_CREDENTIALS}}
+
   create-compute:
     needs: [get-config, install-requirements]
-    uses: AbinZorto/ghapysdk-templates/.github/workflows/create-compute.yml@main
-    with:
-      cluster_name: cpu-cluster
-      size: Standard_DS3_v2
-      min_instances: 0
-      max_instances: 4
-      cluster_tier: low_priority
-    secrets:
-      creds: ${{secrets.AZURE_CREDENTIALS}}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+      - name: Create compute
+        uses: AbinZorto/ghapysdk-templates/.github/workflows/create-compute.yml@main
+        with:
+          cluster_name: cpu-cluster
+          size: Standard_DS3_v2
+          min_instances: 0
+          max_instances: 4
+          cluster_tier: low_priority
+        env:
+          AZURE_CREDENTIALS: ${{secrets.AZURE_CREDENTIALS}}
+
   run-model-training-pipeline:
     needs: [get-config, register-environment, register-data-asset, create-compute]
-    uses: AbinZorto/ghapysdk-templates/.github/workflows/run-pipeline.yml@main
-    with:
-      experiment_name: "dev-taxi-fare-training"
-      data_name: "data"
-      environment_name: "automl-env"
-      compute_name: "cpu-cluster"
-      enable_monitoring: ${{ needs.get-config.outputs.enable_monitoring }}
-      table_name: "taximonitoring"
-      pipeline_path: "amlws-assets/pipelinejobs/dev-train.py"
-    secrets:
-      creds: ${{secrets.AZURE_CREDENTIALS}}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+      - name: Run training pipeline
+        uses: AbinZorto/ghapysdk-templates/.github/workflows/run-pipeline.yml@main
+        with:
+          experiment_name: "dev-taxi-fare-training"
+          data_name: "data"
+          environment_name: "automl-env"
+          compute_name: "cpu-cluster"
+          enable_monitoring: ${{ needs.get-config.outputs.enable_monitoring }}
+          table_name: "taximonitoring"
+          pipeline_path: "amlws-assets/pipelinejobs/dev-train.py"
+        env:
+          AZURE_CREDENTIALS: ${{secrets.AZURE_CREDENTIALS}}
