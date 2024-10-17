@@ -29,7 +29,7 @@ jobs:
           echo "config-file=$config_env" >> $GITHUB_OUTPUT;
   get-config:
     needs: set-env-branch
-    uses: AbinZorto/mlops-templates/.github/workflows/read-yaml.yml@main
+    uses: AbinZorto/ghapysdk-templates/.github/workflows/read-yaml.yml@main
     with:
       file_name: ${{ needs.set-env-branch.outputs.config-file}}
   test-terraform-state-deployment:
