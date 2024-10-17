@@ -1,0 +1,47 @@
+name: run-pipeline
+
+on:
+  workflow_call:
+    inputs:
+      experiment_name:
+        type: string
+        required: true
+      data_name:
+        type: string
+        required: true
+      environment_name:
+        type: string
+        required: true
+      compute_name:
+        type: string
+        required: true
+      enable_monitoring:
+        type: string
+        default: "false"
+      table_name:
+        type: string
+        default: "taximonitoring"
+      pipeline_path:
+        type: string
+        required: true
+    secrets:
+      creds:
+        required: true
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run pipeline
+        env:
+          AZURE_CLIENT_ID: ${{ fromJson(secrets.creds).clientId }}
+          AZURE_TENANT_ID: ${{ fromJson(secrets.creds).tenantId }}
+          AZURE_CLIENT_SECRET: ${{ fromJson(secrets.creds).clientSecret }}
+        run: |
+          python ${{ inputs.pipeline_path }} \
+            --experiment_name "${{ inputs.experiment_name }}" \
+            --data_name "${{ inputs.data_name }}" \
+            --environment_name "${{ inputs.environment_name }}" \
+            --compute_name "${{ inputs.compute_name }}" \
+            --enable_monitoring "${{ inputs.enable_monitoring }}" \
+            --table_name "${{ inputs.table_name }}"

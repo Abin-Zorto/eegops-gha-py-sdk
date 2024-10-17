@@ -1,0 +1,28 @@
+name: install-requirements
+
+on:
+  workflow_call:
+
+jobs:
+  install-requirements:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10.4'
+          architecture: 'x64'
+
+      - name: Install Python SDK v2 and Azure Identity
+        run: |
+          pip install azure-ai-ml
+          pip install azure-identity
+          pip install azure-core
+        shell: bash
+
+      - name: Verify installations
+        run: |
+          python -c "import azure.ai.ml; print(azure.ai.ml.__version__)"
+          python -c "import azure.identity; print(azure.identity.__version__)"
+          python -c "import azure.core; print(azure.core.__version__)"
+        shell: bash

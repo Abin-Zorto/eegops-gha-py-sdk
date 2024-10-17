@@ -1,0 +1,32 @@
+name: create-online-endpoint
+
+on:
+  workflow_call:
+    inputs:
+      endpoint_name:
+        required: true
+        type: string
+      endpoint_description:
+        required: true
+        type: string
+      auth_mode:
+        required: true
+        type: string
+    secrets:
+      creds:
+        required: true
+
+jobs:
+  create-online-endpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create online endpoint
+        env:
+          AZURE_CLIENT_ID: ${{ fromJson(secrets.creds).clientId }}
+          AZURE_TENANT_ID: ${{ fromJson(secrets.creds).tenantId }}
+          AZURE_CLIENT_SECRET: ${{ fromJson(secrets.creds).clientSecret }}
+        run: |
+          python gha-py-sdk-v2-templates/python-sdk-v2-templates/create_online_endpoint.py \
+            --endpoint_name "${{ inputs.endpoint_name }}" \
+            --description "${{ inputs.endpoint_description }}" \
+            --auth_mode "${{ inputs.auth_mode }}" 

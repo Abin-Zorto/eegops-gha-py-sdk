@@ -1,0 +1,6 @@
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineDeployment.schema.json
+name: blue
+endpoint_name: $(Build.Repository.Name)-online
+model: azureml:automl-model@latest
+instance_type: Standard_DS3_v2
+instance_count: 1

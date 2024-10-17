@@ -1,0 +1,4 @@
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineEndpoint.schema.json
+name: $(Build.Repository.Name)-online
+description: Model endpoint
+auth_mode: key
