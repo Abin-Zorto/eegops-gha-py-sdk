@@ -1,0 +1,39 @@
+name: register-environment
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        required: true
+        type: string
+      environment_description:
+        required: false
+        type: string
+        default: ""
+      environment_path:
+        required: true
+        type: string
+      build_type:
+        required: true
+        type: string
+    secrets:
+      creds:
+        required: true
+
+jobs:
+  register-environment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Register environment
+        env:
+          AZURE_CLIENT_ID: ${{ fromJson(secrets.creds).clientId }}
+          AZURE_TENANT_ID: ${{ fromJson(secrets.creds).tenantId }}
+          AZURE_CLIENT_SECRET: ${{ fromJson(secrets.creds).clientSecret }}
+        run: |
+          python src/register_environment.py \
+            --environment_name "${{ inputs.environment_name }}" \
+            --description "${{ inputs.environment_description }}" \
+            --env_path "${{ inputs.environment_path }}" \
+            --build_type "${{ inputs.build_type }}"

@@ -1,0 +1,37 @@
+name: create-online-deployment
+
+on:
+  workflow_call:
+    inputs:
+      endpoint_name:
+        required: true
+        type: string
+      deployment_name:
+        required: true
+        type: string
+      model_path:
+        required: true
+        type: string
+      traffic_allocation:
+        required: true
+        type: string
+        default: "100"
+    secrets:
+      creds:
+        required: true
+
+jobs:
+  create-online-deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create online deployment
+        env:
+          AZURE_CLIENT_ID: ${{ fromJson(secrets.creds).clientId }}
+          AZURE_TENANT_ID: ${{ fromJson(secrets.creds).tenantId }}
+          AZURE_CLIENT_SECRET: ${{ fromJson(secrets.creds).clientSecret }}
+        run: |
+          python src/create_online_deployment.py \
+            --endpoint_name "${{ inputs.endpoint_name }}" \
+            --deployment_name "${{ inputs.deployment_name }}" \
+            --model_path "${{ inputs.model_path }}" \
+            --traffic_allocation "${{ inputs.traffic_allocation }}" \
