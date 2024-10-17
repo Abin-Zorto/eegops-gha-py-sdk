@@ -37,7 +37,7 @@ runs:
       env:
         AZURE_CREDENTIALS: ${{ inputs.azure_credentials }}
       run: |
-        python ${{ github.action_path }}/create_compute.py \
+        python src/create_compute.py \
           --cluster_name "${{ inputs.cluster_name }}" \
           --size "${{ inputs.size }}" \
           --min_instances "${{ inputs.min_instances }}" \

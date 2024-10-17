@@ -34,7 +34,7 @@ runs:
       env:
         AZURE_CREDENTIALS: ${{ inputs.azure_credentials }}
       run: |
-        python ${{ github.action_path }}/register_data_asset.py \
+        python src/register_data_asset.py \
           --data_name "${{ inputs.data_name }}" \
           --data_path "${{ inputs.data_path }}" \
           --data_type "${{ inputs.data_type }}" \
