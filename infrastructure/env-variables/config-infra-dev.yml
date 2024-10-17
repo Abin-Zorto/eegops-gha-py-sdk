@@ -6,7 +6,7 @@ variables:
   # Global
   ap_vm_image: ubuntu-20.04
 
-  namespace: gha-py-sdk #Note: A namespace with many characters will cause storage account creation to fail due to storage account names having a limit of 24 characters.
+  namespace: ghapysdk #Note: A namespace with many characters will cause storage account creation to fail due to storage account names having a limit of 24 characters.
   postfix: 0001
   location: uksouth
   environment: dev
@@ -14,8 +14,17 @@ variables:
   enable_monitoring: false
   ds_data: amlws-assets/data/data.yml
   ds_environment: automl
+  environment_name: automl
+  environment_description: automl
+  environment_path: amlws-assets/environment/automl-env.yml
+  build_type: conda
   pipeline_file: amlws-assets/pipelinejobs/dev-train.py
   virtual_environment: azure
+  modelname: automl
+  data_name: data
+  data_path: amlws-assets/data/data.yml
+  data_type: uri_file
+  data_description: data
 
   # DO NOT TOUCH
 
