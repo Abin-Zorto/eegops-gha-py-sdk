@@ -36,7 +36,7 @@ runs:
       run: |
         python src/register_environment.py \
           --environment_name "${{ inputs.environment_name }}" \
-          --environment_description "${{ inputs.environment_description }}" \
+          --description "${{ inputs.environment_description }}" \
           --environment_path "${{ inputs.environment_path }}" \
           --build_type "${{ inputs.build_type }}"
       shell: bash
