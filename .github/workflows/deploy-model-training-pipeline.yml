@@ -30,6 +30,9 @@ jobs:
     uses: Azure/mlops-templates/.github/workflows/read-yaml.yml@main
     with:
       file_name: ${{ needs.set-env-branch.outputs.config-file}}
+  install-requirements:
+    needs: set-env-branch
+    uses: AbinZorto/ghapysdk-templates/.github/workflows/install-requirements.yml@main
   register-environment:
     needs: get-config
     uses: AbinZorto/ghapysdk-templates/.github/workflows/register-environment.yml@main
