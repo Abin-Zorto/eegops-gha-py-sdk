@@ -11,17 +11,15 @@ jobs:
       - id: set-prod-branch
         name: set-prod-branch
         if: ${{ github.ref == 'refs/heads/main'}}
-        run: echo "config_env=config-infra-prod.yml" >> $GITHUB_ENV;
-
+        run: echo "config_env=infrastructure/env-variables/config-infra-prod.yml" >> $GITHUB_ENV;
       - id: set-stage-branch
-        name: setstagebranch
-        if: ${{ github.ref == 'refs/heads/staging'}}
-        run: echo "config_env=config-infra-stage.yml" >> $GITHUB_ENV;
-      
+        name: set-stage-branch
+        if: ${{ github.ref == 'refs/heads/staging' }}
+        run: echo "config_env=infrastructure/env-variables/config-infra-stage.yml" >> $GITHUB_ENV
       - id: set-dev-branch
         name: setdevbranch
         if: ${{ github.ref == 'refs/heads/develop'}}
-        run: echo "config_env=config-infra-dev.yml" >> $GITHUB_ENV;
+        run: echo "config_env=infrastructure/env-variables/config-infra-dev.yml" >> $GITHUB_ENV;
         
       - id: set-output-defaults
         name: set-output-defaults
