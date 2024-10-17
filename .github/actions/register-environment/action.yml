@@ -37,7 +37,7 @@ runs:
       env:
         AZURE_CREDENTIALS: ${{ inputs.azure_credentials }}
       run: |
-        python ${{ github.action_path }}/register_environment.py \
+        python src/register_environment.py \
           --environment_name "${{ inputs.environment_name }}" \
           --description "${{ inputs.environment_description }}" \
           --env_path "${{ inputs.environment_path }}" \
