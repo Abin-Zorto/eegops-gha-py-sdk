@@ -30,7 +30,7 @@ jobs:
   get-config:
     # This job remains unchanged
     needs: set-env-branch
-    uses: Azure/mlops-templates/.github/workflows/read-yaml.yml@main
+    uses: AbinZorto/mlops-templates/.github/workflows/read-yaml.yml@main
     with:
       file_name: ${{ needs.set-env-branch.outputs.config-file}}
 
