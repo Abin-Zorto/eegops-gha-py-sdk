@@ -5,7 +5,6 @@ on:
 
 jobs:
   set-env-branch:
-    # This job remains unchanged
     runs-on: ubuntu-latest
     outputs:
       config-file: ${{ steps.set-output-defaults.outputs.config-file }}
@@ -13,7 +12,7 @@ jobs:
       - id: set-prod-branch
         name: set-prod-branch
         if: ${{ github.ref == 'refs/heads/main'}}
-        run: echo "config_env=infrastructure/env-variables/config-infra-prod.yml" >> $GITHUB_ENV;
+        run: echo "config_env=infrastructure/env-variables/config-infra-prod.yml" >> $GITHUB_ENV
       - id: set-stage-branch
         name: set-stage-branch
         if: ${{ github.ref == 'refs/heads/staging' }}
@@ -21,46 +20,51 @@ jobs:
       - id: set-dev-branch
         name: setdevbranch
         if: ${{ github.ref == 'refs/heads/develop'}}
-        run: echo "config_env=infrastructure/env-variables/config-infra-dev.yml" >> $GITHUB_ENV;
+        run: echo "config_env=infrastructure/env-variables/config-infra-dev.yml" >> $GITHUB_ENV
       - id: set-output-defaults
         name: set-output-defaults
         run: |
-          echo "config-file=$config_env" >> $GITHUB_OUTPUT;
+          echo "config-file=$config_env" >> $GITHUB_OUTPUT
 
   get-config:
-    # This job remains unchanged
     needs: set-env-branch
-    uses: Azure/mlops-templates/.github/workflows/read-yaml.yml@main
+    uses: AbinZorto/mlops-templates/.github/workflows/read-yaml.yml@main
     with:
-      file_name: ${{ needs.set-env-branch.outputs.config-file}}
+      file_name: ${{ needs.set-env-branch.outputs.config-file }}
 
   ml-ops-jobs:
     needs: [set-env-branch, get-config]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: '3.12'
+
       - name: Install and cache dependencies
         uses: ./.github/actions/install-and-cache-deps
+
       - name: Register environment
         uses: ./.github/actions/register-environment
         with:
-          environment_name: automl
-          environment_description: AutoML environment
-          environment_path: amlws-assets/environment/automl-env.yml
-          build_type: conda
+          environment_name: ${{ needs.get-config.outputs.environment_name }}
+          environment_description: ${{ needs.get-config.outputs.environment_description }}
+          environment_path: ${{ needs.get-config.outputs.environment_path }}
+          build_type: ${{ needs.get-config.outputs.build_type }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Register data asset
         uses: ./.github/actions/register-data-asset
         with:
-          data_name: data
-          data_path: amlws-assets/data/data.yml
-          data_type: uri_file
-          data_description: data
+          data_name: ${{ needs.get-config.outputs.data_name }}
+          data_path: ${{ needs.get-config.outputs.data_path }}
+          data_type: ${{ needs.get-config.outputs.data_type }}
+          data_description: ${{ needs.get-config.outputs.data_description }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Create compute
         uses: ./.github/actions/create-compute
         with:
@@ -70,14 +74,15 @@ jobs:
           max_instances: 4
           cluster_tier: low_priority
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Run model training pipeline
         uses: ./.github/actions/run-pipeline
         with:
           experiment_name: "dev-taxi-fare-training"
-          data_name: "data"
-          environment_name: "automl-env"
+          data_name: ${{ needs.get-config.outputs.data_name }}
+          environment_name: ${{ needs.get-config.outputs.environment_name }}
           compute_name: "cpu-cluster"
-          enable_monitoring: false
+          enable_monitoring: ${{ needs.get-config.outputs.enable_monitoring }}
           table_name: "taximonitoring"
-          pipeline_path: "amlws-assets/pipelinejobs/dev-train.py"
+          pipeline_path: ${{ needs.get-config.outputs.pipeline_file }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
