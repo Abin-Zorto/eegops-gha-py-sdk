@@ -16,7 +16,7 @@ variables:
   ds_environment: automl
   environment_name: automl
   environment_description: automl
-  environment_path: amlws-assets/environment/automl-conda.yml
+  environment_path: amlws-assets/environment/automl-env.yml
   build_type: conda
   subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
   # DO NOT TOUCH
