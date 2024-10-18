@@ -30,7 +30,7 @@ jobs:
   get-config:
     # This job remains unchanged
     needs: set-env-branch
-    uses: AbinZorto/mlops-templates/.github/workflows/read-yaml.yml@main
+    uses: Azure/mlops-templates/.github/workflows/read-yaml.yml@main
     with:
       file_name: ${{ needs.set-env-branch.outputs.config-file}}
 
@@ -48,18 +48,18 @@ jobs:
       - name: Register environment
         uses: ./.github/actions/register-environment
         with:
-          environment_name: ${{ needs.get-config.outputs.environment_name }}
-          environment_description: ${{ needs.get-config.outputs.environment_description }}
-          environment_path: ${{ needs.get-config.outputs.environment_path }}
-          build_type: ${{ needs.get-config.outputs.build_type }}
+          environment_name: automl
+          environment_description: AutoML environment
+          environment_path: amlws-assets/environment/automl-env.yml
+          build_type: conda
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Register data asset
         uses: ./.github/actions/register-data-asset
         with:
-          data_name: ${{ needs.get-config.outputs.data_name }}
-          data_path: ${{ needs.get-config.outputs.data_path }}
-          data_type: ${{ needs.get-config.outputs.data_type }}
-          data_description: ${{ needs.get-config.outputs.data_description }}
+          data_name: data
+          data_path: amlws-assets/data/data.yml
+          data_type: uri_file
+          data_description: data
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Create compute
         uses: ./.github/actions/create-compute
@@ -77,7 +77,7 @@ jobs:
           data_name: "data"
           environment_name: "automl-env"
           compute_name: "cpu-cluster"
-          enable_monitoring: ${{ needs.get-config.outputs.enable_monitoring }}
+          enable_monitoring: false
           table_name: "taximonitoring"
           pipeline_path: "amlws-assets/pipelinejobs/dev-train.py"
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
