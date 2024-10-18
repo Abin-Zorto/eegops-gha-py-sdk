@@ -16,7 +16,7 @@ variables:
   ds_environment: automl
   environment_name: automl
   environment_description: automl
-  environment_path: amlws-assets/environment/automl-env.yml
+  environment_path: amlws-assets/environment/automl-conda.yml
   build_type: conda
   pipeline_file: amlws-assets/pipelinejobs/dev-train.py
   virtual_environment: azure
