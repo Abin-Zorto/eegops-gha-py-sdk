@@ -47,6 +47,14 @@ jobs:
       - name: Install and cache dependencies
         uses: ./.github/actions/install-and-cache-deps
 
+      - name: Create config.json
+        run: |
+          echo '{
+            "subscription_id": "${{ needs.get-config.outputs.subscription_id }}",
+            "resource_group": "${{ needs.get-config.outputs.resource_group }}",
+            "workspace_name": "${{ needs.get-config.outputs.aml_workspace }}"
+          }' > config.json
+
       - name: Register environment
         uses: ./.github/actions/register-environment
         with:
