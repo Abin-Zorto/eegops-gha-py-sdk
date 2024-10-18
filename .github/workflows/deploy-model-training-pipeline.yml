@@ -72,7 +72,7 @@ jobs:
           environment_path: ${{ needs.get-config.outputs.environment_path }}
           build_type: ${{ needs.get-config.outputs.build_type }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
-          
+
       - name: Create compute
         uses: ./.github/actions/create-compute
         with:

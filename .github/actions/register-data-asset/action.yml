@@ -38,5 +38,5 @@ runs:
           --data_name "${{ inputs.data_name }}" \
           --data_path "${{ inputs.data_path }}" \
           --data_type "${{ inputs.data_type }}" \
-          --data_description "${{ inputs.data_description }}"
+          --description "${{ inputs.data_description }}"
       shell: bash
