@@ -57,12 +57,16 @@ jobs:
 
       - name: Register data asset
         uses: ./.github/actions/register-data-asset
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
         with:
-          data_name: ${{ needs.get-config.outputs.data_name }}
-          data_path: ${{ needs.get-config.outputs.data_path }}
-          data_type: ${{ needs.get-config.outputs.data_type }}
-          data_description: ${{ needs.get-config.outputs.data_description }}
-          azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          data_name: data
+          data_path: amlws-assets/data/data.yml
+          data_type: uri_file
+          data_description: data
 
       - name: Register environment
         uses: ./.github/actions/register-environment
