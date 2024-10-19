@@ -96,6 +96,10 @@ jobs:
 
       - name: Run model training pipeline
         uses: ./.github/actions/run-pipeline
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
           experiment_name: "dev-taxi-fare-training"
           data_name: ${{ needs.get-config.outputs.data_name }}
