@@ -1,6 +1,6 @@
 from azure.ai.ml import MLClient
 from azure.ai.ml.entities import Data
-from azure.identity import DefaultAzureCredential   
+from azure.identity import ClientSecretCredential
 import argparse
 import os
 
@@ -14,11 +14,16 @@ def main():
 
     try:
         # Use ClientSecretCredential instead of DefaultAzureCredential
-        credential = DefaultAzureCredential()
+        credential = ClientSecretCredential(
+            client_id=os.environ["AZURE_CLIENT_ID"],
+            client_secret=os.environ["AZURE_CLIENT_SECRET"],
+            tenant_id=os.environ["AZURE_TENANT_ID"]
+        )
         
         # Include subscription_id when initializing MLClient
         ml_client = MLClient.from_config(
             credential=credential,
+            subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"]
         )
 
         print(f"Registering data asset {args.data_name}")
