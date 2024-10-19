@@ -60,7 +60,7 @@ def main():
     # Create pipeline job
 
     # 1. Define components
-    parent_dir = "data-science/src"
+    parent_dir = "amlws-assets/src"
     
     prep_data = command( 
         name="prep_data",
