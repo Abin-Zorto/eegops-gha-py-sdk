@@ -1,8 +1,9 @@
 import argparse
 from azure.ai.ml.entities import Environment, BuildContext
-from azure.identity import DefaultAzureCredential
+from azure.identity import ClientSecretCredential
 from azure.ai.ml import MLClient
 import json
+import os
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Register environment")
@@ -19,7 +20,11 @@ def main():
     
     try:
         # Initialize MLClient
-        credential = DefaultAzureCredential()
+        credential = ClientSecretCredential(
+            client_id=os.environ["AZURE_CLIENT_ID"],
+            client_secret=os.environ["AZURE_CLIENT_SECRET"],
+            tenant_id=os.environ["AZURE_TENANT_ID"]
+        )
         ml_client = MLClient.from_config(credential=credential)
 
         # Create the environment
