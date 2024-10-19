@@ -1,6 +1,3 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License.
-
 import argparse
 
 from azure.ai.ml.entities import Data
@@ -53,19 +50,18 @@ def main():
         print("No compute found")
 
 
-
     print(os.getcwd())
     print('current', os.listdir())
 
     # Create pipeline job
 
     # 1. Define components
-    parent_dir = "amlws-assets/src"
+    repo_url = "git+https://github.com/AbinZorto/mlopsv2-gha-py-sdk.git"
     
     prep_data = command( 
         name="prep_data",
         display_name="prep-data",
-        code=os.path.join(parent_dir, "prep"),
+        code=f"{repo_url}#subdirectory=amlws-assets/src/prep",
         command="python prep.py \
                 --raw_data ${{inputs.raw_data}} \
                 --train_data ${{outputs.train_data}}  \
@@ -89,7 +85,7 @@ def main():
     train_model = command( 
         name="train_model",
         display_name="train-model",
-        code=os.path.join(parent_dir, "train"),
+        code=f"{repo_url}#subdirectory=amlws-assets/src/train",
         command="python train.py \
                 --train_data ${{inputs.train_data}} \
                 --model_output ${{outputs.model_output}}",
@@ -101,7 +97,7 @@ def main():
     evaluate_model = command(
         name="evaluate_model",
         display_name="evaluate-model",
-        code=os.path.join(parent_dir, "evaluate"),
+        code=f"{repo_url}#subdirectory=amlws-assets/src/evaluate",
         command="python evaluate.py \
                 --model_name ${{inputs.model_name}} \
                 --model_input ${{inputs.model_input}} \
@@ -121,7 +117,7 @@ def main():
     register_model = command(
         name="register_model",
         display_name="register-model",
-        code=os.path.join(parent_dir, "register"),
+        code=f"{repo_url}#subdirectory=amlws-assets/src/register",
         command="python register.py \
                 --model_name ${{inputs.model_name}} \
                 --model_path ${{inputs.model_path}} \
