@@ -38,8 +38,8 @@ def main():
             env.docker = BuildContext(dockerfile_path=args.env_path)
             env.image = args.base_image
         else:
-            env.conda_file = args.env_path
             env.image = args.base_image
+            env.conda_file = args.env_path
 
         # Register the environment
         registered_env = ml_client.environments.create_or_update(env)
