@@ -1,43 +1,47 @@
-from azure.ai.ml import MLClient
-from azure.ai.ml.entities import Environment
-from azure.identity import DefaultAzureCredential
 import argparse
-import yaml
+from azure.ai.ml.entities import Environment, BuildContext
+from azure.identity import DefaultAzureCredential
+from azure.ai.ml import MLClient
+import json
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Register environment")
+    parser.add_argument("--environment_name", type=str, required=True, help="Name of the environment")
+    parser.add_argument("--description", type=str, required=True, help="Description of the environment")
+    parser.add_argument("--env_path", type=str, required=True, help="Path to the environment file")
+    parser.add_argument("--build_type", type=str, required=True, choices=['docker', 'conda'], help="Build type for the environment")
+    parser.add_argument("--base_image", type=str, default="mcr.microsoft.com/azureml/openmpi3.1.2-ubuntu18.04", help="Base image for the environment")
+    return parser.parse_args()
 
 def main():
-    parser = argparse.ArgumentParser("register_environment")
-    parser.add_argument("--environment_name", type=str)
-    parser.add_argument("--description", type=str)
-    parser.add_argument("--env_path", type=str)
-    parser.add_argument("--build_type", type=str)
-    parser.add_argument("--base_image", type=str)
-    args = parser.parse_args()
-
+    args = parse_args()
     print(f"Arguments: {args}")
+    
+    try:
+        # Initialize MLClient
+        credential = DefaultAzureCredential()
+        ml_client = MLClient.from_config(credential=credential)
 
-    # Read YAML file
-    with open("config.json") as f:
-        config = yaml.safe_load(f)
+        # Create the environment
+        env = Environment(
+            name=args.environment_name,
+            description=args.description
+        )
 
-    credential = DefaultAzureCredential()
-    ml_client = MLClient(
-        credential=credential
-    )
+        # Add the docker or conda context
+        if args.build_type == 'docker':
+            env.docker = BuildContext(dockerfile_path=args.env_path)
+            env.image = args.base_image
+        else:
+            env.conda_file = args.env_path
 
-    # Read the conda file
-    with open(args.env_path, "r") as f:
-        conda_env = yaml.safe_load(f)
+        # Register the environment
+        registered_env = ml_client.environments.create_or_update(env)
+        print(f"Environment registered: {registered_env.name}, version: {registered_env.version}")
 
-    env = Environment(
-        name=args.environment_name,
-        description=args.description,
-        conda_file=conda_env,
-        image=args.base_image
-    )
-
-    ml_client.environments.create_or_update(env)
-
-    print(f"Environment {args.environment_name} registered successfully")
+    except Exception as ex:
+        print(f"An error occurred: {str(ex)}")
+        raise
 
 if __name__ == "__main__":
     main()
