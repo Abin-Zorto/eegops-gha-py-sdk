@@ -34,6 +34,7 @@ def main():
             env.image = args.base_image
         else:
             env.conda_file = args.env_path
+            env.image = args.base_image
 
         # Register the environment
         registered_env = ml_client.environments.create_or_update(env)
