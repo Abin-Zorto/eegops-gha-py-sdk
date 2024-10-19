@@ -64,7 +64,7 @@ def main():
     prep_data = command( 
         name="prep_data",
         display_name="prep-data",
-        code=os.path.join(os.getcwd(), "amlws-assets/src/prep"),
+        code="amlws-assets/src/prep",
         command="python prep.py \
                 --raw_data ${{inputs.raw_data}} \
                 --train_data ${{outputs.train_data}}  \
@@ -88,7 +88,7 @@ def main():
     train_model = command( 
         name="train_model",
         display_name="train-model",
-        code=os.path.join(os.getcwd(), "amlws-assets/src/train"),
+        code="amlws-assets/src/train",
         command="python train.py \
                 --train_data ${{inputs.train_data}} \
                 --model_output ${{outputs.model_output}}",
@@ -100,7 +100,7 @@ def main():
     evaluate_model = command(
         name="evaluate_model",
         display_name="evaluate-model",
-        code=os.path.join(os.getcwd(), "amlws-assets/src/evaluate"),
+        code="amlws-assets/src/evaluate",
         command="python evaluate.py \
                 --model_name ${{inputs.model_name}} \
                 --model_input ${{inputs.model_input}} \
@@ -120,7 +120,7 @@ def main():
     register_model = command(
         name="register_model",
         display_name="register-model",
-        code=os.path.join(os.getcwd(), "amlws-assets/src/register"),
+        code="amlws-assets/src/register",
         command="python register.py \
                 --model_name ${{inputs.model_name}} \
                 --model_path ${{inputs.model_path}} \
