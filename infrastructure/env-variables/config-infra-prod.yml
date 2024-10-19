@@ -18,7 +18,7 @@ variables:
   environment_description: automl
   environment_path: amlws-assets/environment/automl-conda.yml
   build_type: conda
-  subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  subscription_id: 1c81448f-a844-4192-b988-9f247a70c83f
   # DO NOT TOUCH
 
   # For pipeline reference

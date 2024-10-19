@@ -21,7 +21,7 @@ variables:
   pipeline_file: $(Build.SourcesDirectory)/amlws-assets/pipelinejobs/stage-test.yml
   virtual_environment: azure
   modelname: automl
-  subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  subscription_id: 1c81448f-a844-4192-b988-9f247a70c83f
 
   # DO NOT TOUCH
 

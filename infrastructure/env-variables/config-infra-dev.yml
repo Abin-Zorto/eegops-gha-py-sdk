@@ -25,7 +25,7 @@ variables:
   data_path: amlws-assets/data/data.yml
   data_type: uri_file
   data_description: data
-  subscription_id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  subscription_id: 1c81448f-a844-4192-b988-9f247a70c83f
   # DO NOT TOUCH
 
   # For pipeline reference
