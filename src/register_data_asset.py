@@ -22,8 +22,7 @@ def main():
         
         # Include subscription_id when initializing MLClient
         ml_client = MLClient.from_config(
-            credential=credential,
-            subscription_id=os.environ["AZURE_SUBSCRIPTION_ID"]
+            credential=credential
         )
 
         print(f"Registering data asset {args.data_name}")
