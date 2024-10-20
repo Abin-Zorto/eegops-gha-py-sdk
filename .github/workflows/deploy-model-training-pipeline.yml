@@ -101,12 +101,12 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
-          experiment_name: "dev-taxi-fare-training"
+          experiment_name: "dev-taxi-fare-training-regression"
           data_name: ${{ needs.get-config.outputs.data_name }}
           environment_name: ${{ needs.get-config.outputs.environment_name }}
           compute_name: "cpu-cluster"
           enable_monitoring: ${{ needs.get-config.outputs.enable_monitoring }}
           table_name: "taximonitoring"
-          model_name: "automl"
-          pipeline_path: ${{ needs.get-config.outputs.pipeline_file }}
+          model_name: "regression"
+          pipeline_path: amlws-assets/pipelinejobs/dev-train-regression.py
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
