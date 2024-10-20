@@ -65,7 +65,7 @@ def main():
     prep_data = command( 
         name="prep_data",
         display_name="prep-data",
-        code=os.path.join(parent_dir, "prep"),
+        code=os.path.join(parent_dir),
         command="python prep.py \
                 --raw_data ${{inputs.raw_data}} \
                 --train_data ${{outputs.train_data}}  \
@@ -89,7 +89,7 @@ def main():
     train_model = command( 
         name="train_model",
         display_name="train-model",
-        code=os.path.join(parent_dir, "train"),
+        code=os.path.join(parent_dir),
         command="python train.py \
                 --train_data ${{inputs.train_data}} \
                 --model_output ${{outputs.model_output}}",
@@ -101,7 +101,7 @@ def main():
     evaluate_model = command(
         name="evaluate_model",
         display_name="evaluate-model",
-        code=os.path.join(parent_dir, "evaluate"),
+        code=os.path.join(parent_dir),
         command="python evaluate.py \
                 --model_name ${{inputs.model_name}} \
                 --model_input ${{inputs.model_input}} \
@@ -121,7 +121,7 @@ def main():
     register_model = command(
         name="register_model",
         display_name="register-model",
-        code=os.path.join(parent_dir, "register"),
+        code=os.path.join(parent_dir),
         command="python register.py \
                 --model_name ${{inputs.model_name}} \
                 --model_path ${{inputs.model_path}} \
