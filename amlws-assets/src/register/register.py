@@ -9,7 +9,7 @@ from pathlib import Path
 import mlflow
 import os
 import json
-from ..train.train import WrappedModel  # Import WrappedModel from train.py
+from train.train import WrappedModel  # Import WrappedModel from train.py
 
 def parse_args():
     '''Parse input arguments'''
