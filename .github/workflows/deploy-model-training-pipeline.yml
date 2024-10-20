@@ -63,7 +63,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
           data_name: data
-          data_path: amlws-assets/data/data.yml
+          data_path: amlws-assets/data/data.csv
           data_type: uri_file
           data_description: data
 
