@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument("--environment_name", type=str, help="Registered Environment Name")
     parser.add_argument("--enable_monitoring", type=str, help="Enable Monitoring", default="false")
     parser.add_argument("--table_name", type=str, help="ADX Monitoring Table Name", default="taximonitoring")
-    
+    parser.add_argument("--model_name", type=str, help="Model Name", default="automl")
     args = parser.parse_args()
 
     return parser.parse_args()
@@ -153,14 +153,14 @@ def main():
         )
 
         evaluate = evaluate_model(
-            model_name="taxi-model",
+            model_name=args.model_name,
             model_input=train.outputs.model_output,
             test_data=prep.outputs.test_data
         )
 
 
         register = register_model(
-            model_name="taxi-model",
+            model_name=args.model_name,
             model_path=train.outputs.model_output,
             evaluation_output=evaluate.outputs.evaluation_output
         )

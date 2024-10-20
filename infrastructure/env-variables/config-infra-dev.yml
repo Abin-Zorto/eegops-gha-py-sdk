@@ -12,8 +12,6 @@ variables:
   environment: dev
   enable_aml_computecluster: true
   enable_monitoring: false
-  ds_data: amlws-assets/data/data.yml
-  ds_environment: automl
   environment_name: automl
   environment_description: automl
   environment_path: amlws-assets/environment/automl-conda.yml

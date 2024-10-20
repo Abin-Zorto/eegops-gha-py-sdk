@@ -25,7 +25,6 @@ def parse_args():
     parser = argparse.ArgumentParser("train")
     parser.add_argument("--train_data", type=str, help="Path to train dataset")
     parser.add_argument("--model_output", type=str, help="Path of output model")
-    parser.add_argument("--modelname", type=str, help="model name")
     args = parser.parse_args()
     return args
 

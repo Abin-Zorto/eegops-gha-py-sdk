@@ -62,10 +62,10 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
-          data_name: data
-          data_path: amlws-assets/data/data.csv
-          data_type: uri_file
-          data_description: data
+          data_name: ${{ needs.get-config.outputs.data_name }}
+          data_path: ${{ needs.get-config.outputs.data_path }}
+          data_type: ${{ needs.get-config.outputs.data_type }}
+          data_description: ${{ needs.get-config.outputs.data_description }}
 
       - name: Register environment
         uses: ./.github/actions/register-environment
@@ -107,5 +107,6 @@ jobs:
           compute_name: "cpu-cluster"
           enable_monitoring: ${{ needs.get-config.outputs.enable_monitoring }}
           table_name: "taximonitoring"
+          model_name: "automl"
           pipeline_path: ${{ needs.get-config.outputs.pipeline_file }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
