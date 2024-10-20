@@ -17,6 +17,8 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 import mlflow
 import mlflow.sklearn
+import mlflow.pyfunc
+from mlflow.models.signature import infer_signature
 
 TARGET_COL = "cost"
 
@@ -49,6 +51,12 @@ CAT_NOM_COLS = [
 CAT_ORD_COLS = [
 ]
 
+class WrappedModel(mlflow.pyfunc.PythonModel):
+    def __init__(self, model):
+        self.model = model
+
+    def predict(self, context, model_input):
+        return self.model.predict(model_input)
 
 def parse_args():
     '''Parse input arguments'''
@@ -129,8 +137,17 @@ def main(args):
     plt.savefig("regression_results.png")
     mlflow.log_artifact("regression_results.png")
 
+    wrapped_model = WrappedModel(model)
+
+    # Infer the model signature
+    signature = infer_signature(X_train, model.predict(X_train))
+
     # Save the model
-    mlflow.sklearn.save_model(sk_model=model, path=args.model_output)
+    mlflow.pyfunc.save_model(
+        path=args.model_output,
+        python_model=wrapped_model,
+        signature=signature
+    )
 
 
 if __name__ == "__main__":
