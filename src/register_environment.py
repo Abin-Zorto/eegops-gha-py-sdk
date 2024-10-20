@@ -10,7 +10,7 @@ def parse_args():
     parser.add_argument("--environment_name", type=str, required=True, help="Name of the environment")
     parser.add_argument("--description", type=str, required=True, help="Description of the environment")
     parser.add_argument("--env_path", type=str, required=True, help="Path to the environment file")
-    parser.add_argument("--build_type", type=str, required=True, choices=['docker', 'conda'], help="Build type for the environment")
+    parser.add_argument("--build_type", type=str, required=True, default="conda", help="Build type for the environment")
     parser.add_argument("--base_image", type=str, default="mcr.microsoft.com/azureml/openmpi3.1.2-ubuntu18.04", help="Base image for the environment")
     return parser.parse_args()
 
@@ -28,22 +28,13 @@ def main():
         ml_client = MLClient.from_config(credential=credential)
 
         # Create the environment
-        env = Environment(
+        env_docker_conda = Environment(
+            image=args.base_image,
+            conda_file=args.env_path,
             name=args.environment_name,
-            description=args.description
+            description=args.description,
         )
-
-        # Add the docker or conda context
-        if args.build_type == 'docker':
-            env.docker = BuildContext(dockerfile_path=args.env_path)
-            env.image = args.base_image
-        else:
-            env.image = args.base_image
-            env.conda_file = args.env_path
-
-        # Register the environment
-        registered_env = ml_client.environments.create_or_update(env)
-        print(f"Environment registered: {registered_env.name}, version: {registered_env.version}")
+        ml_client.environments.create_or_update(env_docker_conda)
 
     except Exception as ex:
         print(f"An error occurred: {str(ex)}")

@@ -1,3 +1,4 @@
+name: automl
 channels:
   - conda-forge
 dependencies:
