@@ -12,12 +12,17 @@ variables:
   environment: prod
   enable_aml_computecluster: true
   enable_monitoring: false
-  virtual_environment: azure
-  ds_environment: automl
   environment_name: automl
-  environment_description: automl
+  environment_description: automl for production data
   environment_path: amlws-assets/environment/automl-conda.yml
   build_type: conda
+  pipeline_file: null
+  virtual_environment: azure
+  modelname: automl
+  data_name: null
+  data_path: null
+  data_type: uri_file
+  data_description: production data
   subscription_id: 1c81448f-a844-4192-b988-9f247a70c83f
   # DO NOT TOUCH
 

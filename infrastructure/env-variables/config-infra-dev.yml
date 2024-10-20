@@ -13,16 +13,16 @@ variables:
   enable_aml_computecluster: true
   enable_monitoring: false
   environment_name: automl
-  environment_description: automl
+  environment_description: automl for development data
   environment_path: amlws-assets/environment/automl-conda.yml
   build_type: conda
   pipeline_file: amlws-assets/pipelinejobs/dev-train.py
   virtual_environment: azure
   modelname: automl
   data_name: data
-  data_path: amlws-assets/data/data.yml
+  data_path: amlws-assets/data/data.csv
   data_type: uri_file
-  data_description: data
+  data_description: development data
   subscription_id: 1c81448f-a844-4192-b988-9f247a70c83f
   # DO NOT TOUCH
 

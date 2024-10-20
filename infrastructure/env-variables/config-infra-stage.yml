@@ -12,15 +12,17 @@ variables:
   environment: stage
   enable_aml_computecluster: true
   enable_monitoring: false
-  ds_data: amlws-assets/data/stage.yml
-  ds_environment: automl
   environment_name: automl
-  environment_description: automl
+  environment_description: automl for staging test data
   environment_path: amlws-assets/environment/automl-conda.yml
   build_type: conda
-  pipeline_file: $(Build.SourcesDirectory)/amlws-assets/pipelinejobs/stage-test.py
+  pipeline_file: amlws-assets/pipelinejobs/dev-train.py
   virtual_environment: azure
   modelname: automl
+  data_name: stage
+  data_path: amlws-assets/data/stage.csv
+  data_type: uri_file
+  data_description: staging test data
   subscription_id: 1c81448f-a844-4192-b988-9f247a70c83f
 
   # DO NOT TOUCH
