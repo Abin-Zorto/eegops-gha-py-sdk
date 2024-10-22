@@ -103,9 +103,6 @@ def main(args):
     train.to_parquet((Path(args.train_data) / "train.parquet"))
     val.to_parquet((Path(args.val_data) / "val.parquet"))
     test.to_parquet((Path(args.test_data) / "test.parquet"))
-    train.to_parquet((Path(args.train_data) / "train.parquet"))
-    val.to_parquet((Path(args.val_data) / "val.parquet"))
-    test.to_parquet((Path(args.test_data) / "test.parquet"))
 
     if (args.enable_monitoring.lower() == 'true' or args.enable_monitoring == '1' or args.enable_monitoring.lower() == 'yes'):
         try:

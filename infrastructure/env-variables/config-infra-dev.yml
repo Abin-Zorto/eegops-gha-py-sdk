@@ -21,7 +21,7 @@ variables:
   modelname: automl
   data_name: data
   data_path: amlws-assets/data/data.csv
-  data_type: uri_file
+  data_type: mltable
   data_description: development data
   subscription_id: 1c81448f-a844-4192-b988-9f247a70c83f
   # DO NOT TOUCH
