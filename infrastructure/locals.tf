@@ -1,7 +1,7 @@
 locals {
   tags = {
-    Owner       = "gheegops"
-    Project     = "gheegops"
+    Owner       = "Abin Zorto"
+    Project     = "eegops"
     Environment = "${var.environment}"
     Toolkit     = "terraform"
     Name        = "${var.prefix}"
