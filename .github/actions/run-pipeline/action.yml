@@ -25,6 +25,9 @@ inputs:
   jobtype:
     description: 'Type of the job'
     required: true
+  azure_credentials:
+    description: 'Azure credentials'
+    required: true
 runs:
   using: 'composite'
   steps:
