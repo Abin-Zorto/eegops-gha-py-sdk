@@ -50,5 +50,6 @@ runs:
           --compute_name "${{ inputs.compute_name }}" \
           --enable_monitoring "${{ inputs.enable_monitoring }}" \
           --table_name "${{ inputs.table_name }}" \
-          --model_name "${{ inputs.model_name }}"
+          --model_name "${{ inputs.model_name }}" \
+          --jobtype "${{ inputs.jobtype }}"
       shell: bash

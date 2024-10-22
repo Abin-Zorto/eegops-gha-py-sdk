@@ -107,6 +107,7 @@ jobs:
           compute_name: "cpu-cluster"
           enable_monitoring: ${{ needs.get-config.outputs.enable_monitoring }}
           table_name: "taximonitoring"
-          model_name: "regression"
-          pipeline_path: amlws-assets/pipelinejobs/dev-train-regression.py
+          model_name: "randomforest"
+          pipeline_path: amlws-assets/pipelinejobs/dev-train.py
+          jobtype: "randomforest"
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}

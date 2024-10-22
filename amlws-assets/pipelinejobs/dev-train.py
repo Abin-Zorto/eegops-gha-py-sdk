@@ -31,6 +31,8 @@ def parse_args():
     parser.add_argument("--enable_monitoring", type=str, help="Enable Monitoring", default="false")
     parser.add_argument("--table_name", type=str, help="ADX Monitoring Table Name", default="taximonitoring")
     parser.add_argument("--model_name", type=str, help="Model Name", default="automl")
+    parser.add_argument("--jobtype", type=str, help="Job Type", default="automl")
+
     args = parser.parse_args()
 
     return parser.parse_args()
@@ -65,7 +67,7 @@ def main():
     prep_data = command( 
         name="prep_data",
         display_name="prep-data",
-        code=os.path.join(parent_dir),
+        code=os.path.join(parent_dir, "${{inputs.jobtype}}"),
         command="python prep.py \
                 --raw_data ${{inputs.raw_data}} \
                 --train_data ${{outputs.train_data}}  \
@@ -90,7 +92,7 @@ def main():
         name="train_model",
         display_name="train-model",
         code=os.path.join(parent_dir),
-        command="python train2.py \
+        command="python train.py \
                 --train_data ${{inputs.train_data}} \
                 --model_output ${{outputs.model_output}}",
         environment=args.environment_name+"@latest",
@@ -122,7 +124,7 @@ def main():
         name="register_model",
         display_name="register-model",
         code=os.path.join(parent_dir),
-        command="python register2.py \
+        command="python register.py \
                 --model_name ${{inputs.model_name}} \
                 --model_path ${{inputs.model_path}} \
                 --evaluation_output ${{inputs.evaluation_output}} \
