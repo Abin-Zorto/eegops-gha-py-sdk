@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument("--enable_monitoring", type=str, help="Enable Monitoring", default="false")
     parser.add_argument("--table_name", type=str, help="ADX Monitoring Table Name", default="taximonitoring")
     parser.add_argument("--model_name", type=str, help="Model Name", default="automl")
-    parser.add_argument("--jobtype", type=str, help="Job Type", default="automl")
+    parser.add_argument("--jobtype", type=str, help="Job Type", default="regression")
 
     args = parser.parse_args()
 
@@ -67,7 +67,7 @@ def main():
     prep_data = command( 
         name="prep_data",
         display_name="prep-data",
-        code=os.path.join(parent_dir, "${{inputs.jobtype}}"),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python prep.py \
                 --raw_data ${{inputs.raw_data}} \
                 --train_data ${{outputs.train_data}}  \
