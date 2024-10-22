@@ -20,6 +20,32 @@ def band_power(data, sf, band, window_length):
     ind_max = np.argmax(f > band[1]) - 1
     return np.trapz(Pxx[ind_min: ind_max], f[ind_min: ind_max])
 
+def hfd(data, Kmax):
+    # Initialize an empty list to store log-log values
+    x = []
+    # Get the length of the input data
+    N = len(data)
+    # Loop over each scale from 1 to Kmax
+    for k in range(1, Kmax + 1):
+        # Initialize an empty list to store Lmk values for the current scale
+        Lk = []
+        # Loop over each segment within the current scale
+        for m in range(k):
+            # Calculate indices for the current segment
+            indices = np.arange(m, N, k)
+            # Skip if the segment has fewer than 2 points
+            if len(indices) < 2:
+                continue
+            # Calculate the sum of absolute differences for the segment
+            Lmk = np.sum(np.abs(np.diff(data[indices])))
+            # Normalize Lmk by the segment length and scale
+            Lmk *= (N - 1) / ((len(indices) - 1) * k)
+            # Append the normalized Lmk to the list for the current scale
+            Lk.append(Lmk)
+        # If there are valid Lmk values, calculate log-log values and append to x
+        if len(Lk) > 0:
+            x.append([np.log(1.0 / k), np.log(np.mean(Lk))])
+
 def compute_features(channel_data, sf):
     features = {}
     
@@ -34,7 +60,7 @@ def compute_features(channel_data, sf):
     for band_name, band_range in bands.items():
         features[f'bp_{band_name}'] = band_power(channel_data, sf, band_range, len(channel_data))
     
-    features['hfd'] = nolds.hfd(channel_data, Kmax=10)
+    features['hfd'] = hfd(channel_data, Kmax=10)
     features['corr_dim'] = nolds.corr_dim(channel_data, emb_dim=10)
     features['hurst'] = nolds.hurst_rs(channel_data)
     features['lyapunov'] = nolds.lyap_r(channel_data, emb_dim=10)
