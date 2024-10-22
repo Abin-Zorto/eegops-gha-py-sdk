@@ -102,12 +102,12 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
           experiment_name: "dev-taxi-fare-training-regression"
-          data_name: ${{ needs.get-config.outputs.data_name }}
-          environment_name: ${{ needs.get-config.outputs.environment_name }}
-          compute_name: "cpu-cluster"
-          enable_monitoring: ${{ needs.get-config.outputs.enable_monitoring }}
           table_name: "taximonitoring"
           model_name: "randomforest"
           pipeline_path: amlws-assets/pipelinejobs/dev-train.py
           jobtype: "randomforest"
+          compute_name: "cpu-cluster"
+          data_name: ${{ needs.get-config.outputs.data_name }}
+          environment_name: ${{ needs.get-config.outputs.environment_name }}
+          enable_monitoring: ${{ needs.get-config.outputs.enable_monitoring }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
