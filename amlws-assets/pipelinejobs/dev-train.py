@@ -91,7 +91,7 @@ def main():
     train_model = command( 
         name="train_model",
         display_name="train-model",
-        code=os.path.join(parent_dir),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python train.py \
                 --train_data ${{inputs.train_data}} \
                 --model_output ${{outputs.model_output}}",
