@@ -1,0 +1,61 @@
+name: install-requirements
+
+on:
+  workflow_call:
+
+jobs:
+  install-requirements:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+          architecture: "x64"
+
+      - name: Install Python SDK v2 and Azure Identity
+        run: |
+          echo "Python version: $(python --version)"
+          echo "Pip version: $(pip --version)"
+
+          # Upgrade pip, setuptools, and wheel
+          python -m pip install --upgrade pip setuptools wheel
+          # Install or upgrade azure-cli
+          python -m pip install --upgrade azure-cli
+
+          # Function to compare versions
+          version_gt() { test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"; }
+
+          # Function to check and install package
+          check_and_install() {
+            package=$1
+            required_version=$2
+            installed_version=$(pip show $package 2>/dev/null | grep Version | cut -d ' ' -f 2)
+            
+            if [ -z "$installed_version" ]; then
+              echo "Installing $package $required_version"
+              pip install "$package==$required_version"
+            elif version_gt $required_version $installed_version; then
+              echo "Updating $package from $installed_version to $required_version"
+              pip install --upgrade "$package==$required_version"
+            else
+              echo "$package is already at version $installed_version (required: $required_version)"
+            fi
+          }
+
+          # List of packages and their required versions
+          packages="azure-ai-ml:1.1.0 azure-common:1.1.28 azure-core:1.26.1 azure-identity:1.10.0 azure-mgmt-core:1.3.0 azure-storage-blob:12.14.1 azure-storage-file-datalake:12.9.1 azure-storage-file-share:12.7.0"
+
+          # Check and install packages if necessary
+          echo "$packages" | tr ' ' '\n' | while IFS=':' read -r package version; do
+            check_and_install "$package" "$version"
+          done
+
+          # Update these packages to latest versions
+          pip install --upgrade pyOpenSSL cryptography requests
+
+          # Display Azure CLI version
+          az version
+
+          echo "Azure CLI and dependencies installation completed."
+        shell: bash

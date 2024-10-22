@@ -1,0 +1,7 @@
+paths:
+  - file: ./data.csv
+transformations:
+  - read_delimited_files:
+      delimiter: ','
+      encoding: 'ascii'
+

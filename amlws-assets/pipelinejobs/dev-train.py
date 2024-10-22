@@ -6,7 +6,7 @@ import argparse
 from azure.ai.ml.entities import Data
 from azure.ai.ml.constants import AssetTypes
 
-from azure.identity import DefaultAzureCredential
+from azure.identity import ClientSecretCredential
 from azure.ai.ml import MLClient
 
 from azure.ai.ml.entities import AmlCompute
@@ -30,7 +30,9 @@ def parse_args():
     parser.add_argument("--environment_name", type=str, help="Registered Environment Name")
     parser.add_argument("--enable_monitoring", type=str, help="Enable Monitoring", default="false")
     parser.add_argument("--table_name", type=str, help="ADX Monitoring Table Name", default="taximonitoring")
-    
+    parser.add_argument("--model_name", type=str, help="Model Name", default="automl")
+    parser.add_argument("--jobtype", type=str, help="Job Type", default="regression")
+
     args = parser.parse_args()
 
     return parser.parse_args()
@@ -40,13 +42,12 @@ def main():
     args = parse_args()
     print(args)
     
-    credential = DefaultAzureCredential()
-    try:
-        ml_client = MLClient.from_config(credential, path='config.json')
-
-    except Exception as ex:
-        print("HERE IN THE EXCEPTION BLOCK")
-        print(ex)
+    credential = ClientSecretCredential(
+            client_id=os.environ["AZURE_CLIENT_ID"],
+            client_secret=os.environ["AZURE_CLIENT_SECRET"],
+            tenant_id=os.environ["AZURE_TENANT_ID"]
+        )
+    ml_client = MLClient.from_config(credential=credential)
 
     try:
         print(ml_client.compute.get(args.compute_name))
@@ -61,12 +62,12 @@ def main():
     # Create pipeline job
 
     # 1. Define components
-    parent_dir = "data-science/src"
+    parent_dir = "amlws-assets/src"
     
     prep_data = command( 
         name="prep_data",
         display_name="prep-data",
-        code=os.path.join(parent_dir, "prep"),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python prep.py \
                 --raw_data ${{inputs.raw_data}} \
                 --train_data ${{outputs.train_data}}  \
@@ -90,7 +91,7 @@ def main():
     train_model = command( 
         name="train_model",
         display_name="train-model",
-        code=os.path.join(parent_dir, "train"),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python train.py \
                 --train_data ${{inputs.train_data}} \
                 --model_output ${{outputs.model_output}}",
@@ -102,7 +103,7 @@ def main():
     evaluate_model = command(
         name="evaluate_model",
         display_name="evaluate-model",
-        code=os.path.join(parent_dir, "evaluate"),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python evaluate.py \
                 --model_name ${{inputs.model_name}} \
                 --model_input ${{inputs.model_input}} \
@@ -122,7 +123,7 @@ def main():
     register_model = command(
         name="register_model",
         display_name="register-model",
-        code=os.path.join(parent_dir, "register"),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python register.py \
                 --model_name ${{inputs.model_name}} \
                 --model_path ${{inputs.model_path}} \
@@ -154,14 +155,14 @@ def main():
         )
 
         evaluate = evaluate_model(
-            model_name="taxi-model",
+            model_name=args.model_name,
             model_input=train.outputs.model_output,
             test_data=prep.outputs.test_data
         )
 
 
         register = register_model(
-            model_name="taxi-model",
+            model_name=args.model_name,
             model_path=train.outputs.model_output,
             evaluation_output=evaluate.outputs.evaluation_output
         )

@@ -1,3 +1,4 @@
+name: automl
 channels:
   - conda-forge
 dependencies:
@@ -41,8 +42,13 @@ dependencies:
     - urllib3<=1.26.19
     - zipp<=3.19.2
     - pytz<=2024.1
-    - git+https://github.com/microsoft/AzureML-Observability#subdirectory=aml-obs-client
-    - git+https://github.com/microsoft/AzureML-Observability#subdirectory=aml-obs-collector
+    - charset-normalizer==3.3.2
+    - pillow==10.4.0
+    - pkginfo==1.11.1
+    - >-
+      git+https://github.com/microsoft/AzureML-Observability#subdirectory=aml-obs-client
+    - >-
+      git+https://github.com/microsoft/AzureML-Observability#subdirectory=aml-obs-collector
     - isodate<=0.6.1
     - jsonschema-specifications<=2023.12.1
     - termcolor<=2.4.0

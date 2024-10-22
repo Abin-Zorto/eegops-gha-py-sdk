@@ -9,7 +9,7 @@ from azure.ai.ml import MLClient
 from azure.ai.ml.entities import Environment, BuildContext
 from azure.core.exceptions import ResourceExistsError
 from azure.ai.ml.entities import AmlCompute
-
+from azure.identity import ClientSecretCredential
 
 def get_config_parger(parser: argparse.ArgumentParser = None):
     """Builds the argument parser for the script."""
@@ -69,31 +69,12 @@ def get_config_parger(parser: argparse.ArgumentParser = None):
 
 def connect_to_aml(args):
     """Connect to Azure ML workspace using provided cli arguments."""
-    try:
-        credential = DefaultAzureCredential()
-        # Check if given credential can get token successfully.
-        credential.get_token("https://management.azure.com/.default")
-    except Exception as ex:
-        # Fall back to InteractiveBrowserCredential in case DefaultAzureCredential not work
-        credential = InteractiveBrowserCredential()
-
-    # Get a handle to workspace
-    try:
-        # ml_client to connect using local config.json
-        ml_client = MLClient.from_config(credential, path='config.json')
-
-    except Exception as ex:
-        print(
-            "Could not find config.json, using config.yaml refs to Azure ML workspace instead."
+    credential = ClientSecretCredential(
+            client_id=os.environ["AZURE_CLIENT_ID"],
+            client_secret=os.environ["AZURE_CLIENT_SECRET"],
+            tenant_id=os.environ["AZURE_TENANT_ID"]
         )
-
-        # tries to connect using cli args if provided else using config.yaml
-        ml_client = MLClient(
-            subscription_id=args.subscription_id,
-            resource_group_name=args.resource_group,
-            workspace_name=args.workspace_name,
-            credential=credential,
-        )
+    ml_client = MLClient.from_config(credential=credential)
     return ml_client
 
 

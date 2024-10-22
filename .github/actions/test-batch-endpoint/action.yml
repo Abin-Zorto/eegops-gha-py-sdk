@@ -1,0 +1,38 @@
+name: 'Test Batch Endpoint'
+description: 'Tests a batch endpoint in Azure Machine Learning'
+inputs:
+  endpoint_name:
+    description: 'Name of the batch endpoint'
+    required: true
+  request_batch_file:
+    description: 'Path of the request batch file'
+    required: true
+  request_type:
+    description: 'Either uri_folder or uri_file'
+    required: true
+  azure_credentials:
+    description: 'Azure credentials'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install azure-ai-ml azure-identity
+      shell: bash
+
+    - name: Test batch endpoint
+      env:
+        AZURE_CREDENTIALS: ${{ inputs.azure_credentials }}
+      run: |
+        python ${{ github.action_path }}/test_batch_endpoint.py \
+          --endpoint_name "${{ inputs.endpoint_name }}" \
+          --request_batch_file "${{ inputs.request_batch_file }}" \
+          --request_type "${{ inputs.request_type }}"
+      shell: bash
