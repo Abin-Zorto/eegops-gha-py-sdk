@@ -11,6 +11,8 @@ def parse_args():
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--compute_name", type=str, help="Compute Cluster Name")
     parser.add_argument("--data_name", type=str, help="Data Asset Name")
+    parser.add_argument("--model_name", type=str, help="Model Name")
+    parser.add_argument("--jobtype", type=str, help="Job Type")
     parser.add_argument("--environment_name", type=str, help="Registered Environment Name")
     parser.add_argument("--sampling_rate", type=int, default=256, help="EEG Sampling Rate")
     parser.add_argument("--cutoff_frequency", type=int, default=60, help="Filter Cutoff Frequency")
@@ -38,7 +40,7 @@ def main():
     prep_data = command(
         name="prep_data",
         display_name="prep-data",
-        code=os.path.join(parent_dir),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python prep.py \
                 --input_data ${{inputs.input_data}} \
                 --processed_data ${{outputs.processed_data}} \
@@ -58,7 +60,7 @@ def main():
     extract_features = command(
         name="extract_features",
         display_name="extract-features",
-        code=os.path.join(parent_dir),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python extract_features.py \
                 --processed_data ${{inputs.processed_data}} \
                 --features_output ${{outputs.features_output}} \
@@ -76,7 +78,7 @@ def main():
     train_model = command(
         name="train_model",
         display_name="train-model",
-        code=os.path.join(parent_dir),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python train.py \
                 --features_input ${{inputs.features_input}} \
                 --model_output ${{outputs.model_output}}",

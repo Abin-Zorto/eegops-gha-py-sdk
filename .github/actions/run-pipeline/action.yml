@@ -48,8 +48,8 @@ runs:
           --data_name "${{ inputs.data_name }}" \
           --environment_name "${{ inputs.environment_name }}" \
           --compute_name "${{ inputs.compute_name }}" \
-          --enable_monitoring "${{ inputs.enable_monitoring }}" \
-          --table_name "${{ inputs.table_name }}" \
+          --sampling_rate "${{ inputs.sampling_rate }}" \
+          --cutoff_frequency "${{ inputs.cutoff_frequency }}" \
           --model_name "${{ inputs.model_name }}" \
           --jobtype "${{ inputs.jobtype }}"
       shell: bash
