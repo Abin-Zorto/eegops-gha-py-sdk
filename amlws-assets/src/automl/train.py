@@ -42,7 +42,7 @@ def main():
         label_column_name='Remission',
         compute_target=run.get_environment(),
         enable_early_stopping=True,
-        experiment_timeout_minutes=30,
+        experiment_timeout_minutes=15,
         max_concurrent_iterations=4,
         max_cores_per_iteration=-1,
         verbosity=logging.INFO,
