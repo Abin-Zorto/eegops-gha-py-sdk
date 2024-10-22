@@ -20,7 +20,7 @@ variables:
   virtual_environment: azure
   modelname: automl
   data_name: data
-  data_path: amlws-assets/data/MDD_21_subjects_EC_EEG_data_remission_and_non_remission_seperated.mat
+  data_path: amlws-assets/data/eeg/MDD_21_subjects_EC_EEG_data_remission_and_non_remission_seperated.mat
   data_type: uri_file
   data_description: development data
   subscription_id: 1c81448f-a844-4192-b988-9f247a70c83f
