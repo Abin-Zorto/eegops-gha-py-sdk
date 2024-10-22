@@ -20,7 +20,7 @@ variables:
   virtual_environment: azure
   modelname: automl
   data_name: data
-  data_path: amlws-assets/data/train/train.csv
+  data_path: amlws-assets/data/train/data.csv
   data_type: uri_file
   data_description: development data
   subscription_id: 1c81448f-a844-4192-b988-9f247a70c83f
