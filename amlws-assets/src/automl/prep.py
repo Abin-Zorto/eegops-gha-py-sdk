@@ -1,81 +1,73 @@
 import argparse
 from pathlib import Path
-import scipy.io
 import pandas as pd
 import numpy as np
 import mlflow
-from scipy.signal import butter, filtfilt, resample
+import logging
+import time
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def parse_args():
     parser = argparse.ArgumentParser("prep")
-    parser.add_argument("--input_data", type=str, help="Path to input .mat file")
+    parser.add_argument("--filtered_data", type=str, help="Path to filtered data")
     parser.add_argument("--processed_data", type=str, help="Path to processed data output")
-    parser.add_argument("--sampling_rate", type=int, default=256)
-    parser.add_argument("--cutoff_frequency", type=int, default=60)
     args = parser.parse_args()
     return args
-
-def process_eeg_data(eeg_data_name, mat_data, desired_length=2560, sampling_rate=256, cutoff_frequency=60):
-    eeg_data = mat_data[eeg_data_name]
-    channel_names = ['af7', 'af8', 'tp9', 'tp10']
-    processed_data_frames = []
-    
-    for j in range(eeg_data.shape[0]):
-        participant = eeg_data[j, 1][0][:4]
-        
-        for k in range(eeg_data[j, 0].shape[1]):
-            data_dict = {'Participant': participant}
-            
-            for i, channel_name in enumerate(channel_names):
-                channel_data = eeg_data[j, 0][0, k][:, i]
-                
-                # Resample
-                resampled_data = resample(channel_data, desired_length)
-                
-                # Apply low-pass filter
-                nyquist = 0.5 * sampling_rate
-                low_cutoff = cutoff_frequency / nyquist
-                b, a = butter(4, low_cutoff, btype='low')
-                filtered_data = filtfilt(b, a, resampled_data)
-                
-                data_dict[channel_name] = filtered_data
-                
-            processed_data_frames.append(pd.DataFrame([data_dict]))
-    
-    return pd.concat(processed_data_frames, ignore_index=True)
 
 def main():
     mlflow.start_run()
     args = parse_args()
     
-    print(f"Loading data from: {args.input_data}")
-    mat_data = scipy.io.loadmat(args.input_data)
-    
-    df_non_remission = process_eeg_data(
-        'EEG_windows_Non_remission', 
-        mat_data, 
-        sampling_rate=args.sampling_rate,
-        cutoff_frequency=args.cutoff_frequency
-    )
-    
-    df_remission = process_eeg_data(
-        'EEG_windows_Remission', 
-        mat_data,
-        sampling_rate=args.sampling_rate,
-        cutoff_frequency=args.cutoff_frequency
-    )
-    
-    output_path = Path(args.processed_data)
-    output_path.mkdir(parents=True, exist_ok=True)
-    
-    df_non_remission.to_parquet(output_path / "non_remission.parquet")
-    df_remission.to_parquet(output_path / "remission.parquet")
-    
-    mlflow.log_metric("non_remission_samples", len(df_non_remission))
-    mlflow.log_metric("remission_samples", len(df_remission))
-    
-    print(f"Processed data saved to: {args.processed_data}")
-    mlflow.end_run()
+    try:
+        start_time = time.time()
+        
+        # Load filtered data
+        filtered_data = np.load(args.filtered_data)
+        channel_names = ['af7', 'af8', 'tp9', 'tp10']
+        
+        processed_data = {}
+        for group in ['EEG_windows_Non_remission', 'EEG_windows_Remission']:
+            processed_frames = []
+            
+            for j in range(filtered_data[group].shape[0]):
+                data_dict = {'Participant': f'P{j+1:03d}'}
+                
+                for i, channel in enumerate(channel_names):
+                    data_dict[channel] = filtered_data[group][j, :, i]
+                
+                processed_frames.append(pd.DataFrame([data_dict]))
+            
+            df_group = pd.concat(processed_frames, ignore_index=True)
+            processed_data[group] = df_group
+            
+            # Log metrics for each group
+            mlflow.log_metric(f"{group}_samples", len(df_group))
+            for channel in channel_names:
+                channel_data = np.vstack(df_group[channel].values)
+                mlflow.log_metric(f"{group}_{channel}_mean", np.mean(channel_data))
+                mlflow.log_metric(f"{group}_{channel}_std", np.std(channel_data))
+                mlflow.log_metric(f"{group}_{channel}_max", np.max(channel_data))
+                mlflow.log_metric(f"{group}_{channel}_min", np.min(channel_data))
+        
+        # Save processed data
+        output_path = Path(args.processed_data)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        processed_data['EEG_windows_Non_remission'].to_parquet(output_path / "non_remission.parquet")
+        processed_data['EEG_windows_Remission'].to_parquet(output_path / "remission.parquet")
+        
+        process_time = time.time() - start_time
+        mlflow.log_metric("final_processing_time_seconds", process_time)
+        mlflow.log_metric("processing_status", 1)
+        
+    except Exception as e:
+        logger.error(f"Error in final processing: {str(e)}")
+        mlflow.log_metric("processing_status", 0)
+        raise
+    finally:
+        mlflow.end_run()
 
 if __name__ == "__main__":
     main()

@@ -37,26 +37,80 @@ def main():
 
     parent_dir = "amlws-assets/src"
     
+    # Data loading component
+    data_loader = command(
+        name="data_loader",
+        display_name="load-data",
+        code=os.path.join(parent_dir, args.jobtype),
+        command="python data_loader.py \
+                --input_data ${{inputs.input_data}} \
+                --output_data ${{outputs.output_data}}",
+        environment=args.environment_name+"@latest",
+        inputs={
+            "input_data": Input(type="uri_file")
+        },
+        outputs={
+            "output_data": Output(type="uri_folder")
+        }
+    )
+
+    # Resampling component
+    resampler = command(
+        name="resampler",
+        display_name="resample-data",
+        code=os.path.join(parent_dir, args.jobtype),
+        command="python resampler.py \
+                --input_data ${{inputs.input_data}} \
+                --output_data ${{outputs.output_data}} \
+                --desired_length 2560",
+        environment=args.environment_name+"@latest",
+        inputs={
+            "input_data": Input(type="uri_folder")
+        },
+        outputs={
+            "output_data": Output(type="uri_folder")
+        }
+    )
+
+    # Filtering component
+    filter_data = command(
+        name="filter",
+        display_name="filter-data",
+        code=os.path.join(parent_dir, args.jobtype),
+        command="python filter.py \
+                --input_data ${{inputs.input_data}} \
+                --output_data ${{outputs.output_data}} \
+                --sampling_rate ${{inputs.sampling_rate}} \
+                --cutoff_frequency ${{inputs.cutoff_frequency}}",
+        environment=args.environment_name+"@latest",
+        inputs={
+            "input_data": Input(type="uri_folder"),
+            "sampling_rate": Input(type="number"),
+            "cutoff_frequency": Input(type="number")
+        },
+        outputs={
+            "output_data": Output(type="uri_folder")
+        }
+    )
+
+    # Final preprocessing component
     prep_data = command(
         name="prep_data",
         display_name="prep-data",
         code=os.path.join(parent_dir, args.jobtype),
         command="python prep.py \
-                --input_data ${{inputs.input_data}} \
-                --processed_data ${{outputs.processed_data}} \
-                --sampling_rate ${{inputs.sampling_rate}} \
-                --cutoff_frequency ${{inputs.cutoff_frequency}}",
+                --filtered_data ${{inputs.filtered_data}} \
+                --processed_data ${{outputs.processed_data}}",
         environment=args.environment_name+"@latest",
         inputs={
-            "input_data": Input(type="uri_file"),
-            "sampling_rate": Input(type="number"),
-            "cutoff_frequency": Input(type="number")
+            "filtered_data": Input(type="uri_folder")
         },
         outputs={
             "processed_data": Output(type="uri_folder")
         }
     )
 
+    # Feature extraction component
     extract_features = command(
         name="extract_features",
         display_name="extract-features",
@@ -75,6 +129,7 @@ def main():
         }
     )
 
+    # Model training component
     train_model = command(
         name="train_model",
         display_name="train-model",
@@ -93,22 +148,43 @@ def main():
 
     @pipeline()
     def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency):
-        prep = prep_data(
-            input_data=raw_data,
+        # Load data
+        load = data_loader(
+            input_data=raw_data
+        )
+
+        # Resample data
+        resample = resampler(
+            input_data=load.outputs.output_data
+        )
+
+        # Apply filtering
+        filtered = filter_data(
+            input_data=resample.outputs.output_data,
             sampling_rate=sampling_rate,
             cutoff_frequency=cutoff_frequency
         )
 
+        # Final preprocessing
+        prep = prep_data(
+            filtered_data=filtered.outputs.output_data
+        )
+
+        # Extract features
         features = extract_features(
             processed_data=prep.outputs.processed_data,
             sampling_rate=sampling_rate
         )
 
+        # Train model
         model = train_model(
             features_input=features.outputs.features_output
         )
 
         return {
+            "loaded_data": load.outputs.output_data,
+            "resampled_data": resample.outputs.output_data,
+            "filtered_data": filtered.outputs.output_data,
             "processed_data": prep.outputs.processed_data,
             "features": features.outputs.features_output,
             "trained_model": model.outputs.model_output
