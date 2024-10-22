@@ -28,6 +28,9 @@ inputs:
   azure_credentials:
     description: 'Azure credentials'
     required: true
+  pipeline_path:
+    description: 'Path to the pipeline script'
+    required: true
 runs:
   using: 'composite'
   steps:
