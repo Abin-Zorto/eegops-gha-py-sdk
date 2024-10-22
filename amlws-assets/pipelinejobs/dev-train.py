@@ -103,7 +103,7 @@ def main():
     evaluate_model = command(
         name="evaluate_model",
         display_name="evaluate-model",
-        code=os.path.join(parent_dir),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python evaluate.py \
                 --model_name ${{inputs.model_name}} \
                 --model_input ${{inputs.model_input}} \
@@ -123,7 +123,7 @@ def main():
     register_model = command(
         name="register_model",
         display_name="register-model",
-        code=os.path.join(parent_dir),
+        code=os.path.join(parent_dir, args.jobtype),
         command="python register.py \
                 --model_name ${{inputs.model_name}} \
                 --model_path ${{inputs.model_path}} \
