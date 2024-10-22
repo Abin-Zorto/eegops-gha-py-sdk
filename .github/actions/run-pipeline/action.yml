@@ -13,17 +13,17 @@ inputs:
   compute_name:
     description: 'Name of the compute cluster'
     required: true
-  enable_monitoring:
-    description: 'Enable monitoring flag'
+  sampling_rate:
+    description: 'Sampling rate of the data'
     required: true
-  table_name:
-    description: 'Name of the monitoring table'
+  cutoff_frequency:
+    description: 'Cutoff frequency of the data'
     required: true
-  pipeline_path:
-    description: 'Path to the pipeline script'
+  model_name:
+    description: 'Name of the model'
     required: true
-  azure_credentials:
-    description: 'Azure credentials'
+  jobtype:
+    description: 'Type of the job'
     required: true
 runs:
   using: 'composite'
