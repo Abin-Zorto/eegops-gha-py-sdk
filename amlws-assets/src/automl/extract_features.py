@@ -59,6 +59,39 @@ def band_power(data: np.ndarray, sf: int, band: tuple, window_length: int) -> fl
         logger.warning(f"Error calculating band power: {str(e)}")
         return np.nan
 
+def hfd(data, Kmax):
+    # Initialize an empty list to store log-log values
+    x = []
+    # Get the length of the input data
+    N = len(data)
+    # Loop over each scale from 1 to Kmax
+    for k in range(1, Kmax + 1):
+        # Initialize an empty list to store Lmk values for the current scale
+        Lk = []
+        # Loop over each segment within the current scale
+        for m in range(k):
+            # Calculate indices for the current segment
+            indices = np.arange(m, N, k)
+            # Skip if the segment has fewer than 2 points
+            if len(indices) < 2:
+                continue
+            # Calculate the sum of absolute differences for the segment
+            Lmk = np.sum(np.abs(np.diff(data[indices])))
+            # Normalize Lmk by the segment length and scale
+            Lmk *= (N - 1) / ((len(indices) - 1) * k)
+            # Append the normalized Lmk to the list for the current scale
+            Lk.append(Lmk)
+        # If there are valid Lmk values, calculate log-log values and append to x
+        if len(Lk) > 0:
+            x.append([np.log(1.0 / k), np.log(np.mean(Lk))])
+
+    # Convert x to a numpy array for linear fitting
+    x = np.array(x)
+    # Perform a linear fit to the log-log values to determine the slope
+    a, b = np.polyfit(x[:, 0], x[:, 1], 1)
+    # Return the slope, which is the estimate of the fractal dimension
+    return a
+
 def compute_entropy_features(data: np.ndarray) -> Dict[str, float]:
     """Compute entropy-based features."""
     try:
@@ -93,7 +126,7 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
             
         features = {}
         # Higuchi Fractal Dimension
-        features['hfd'] = nolds.hfd(data, Kmax=10)
+        features['hfd'] = hfd(data, Kmax=10)
         # Correlation Dimension
         features['corr_dim'] = nolds.corr_dim(data, emb_dim=10)
         # Hurst Exponent
