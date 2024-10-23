@@ -129,6 +129,20 @@ def main():
         }
     )
 
+    register_features = command(
+        name="register_features",
+        display_name="register-features",
+        code=os.path.join(parent_dir, args.jobtype),
+        command="python register_features.py \
+                --features_input ${{inputs.features_input}} \
+                --data_name ${{inputs.data_name}}",
+        environment=args.environment_name+"@latest",
+        inputs={
+            "features_input": Input(type="uri_folder"),
+            "data_name": Input(type="string")
+        }
+    )
+
     # Model training component
     train_model = command(
         name="train_model",
@@ -150,7 +164,7 @@ def main():
         description="EEG Analysis Pipeline for Depression Classification",
         display_name="EEG-Analysis-Pipeline"
     )
-    def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency):
+    def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency, feature_data_name):
         # Load data
         load = data_loader(
             input_data=raw_data
@@ -179,6 +193,11 @@ def main():
             sampling_rate=sampling_rate
         )
 
+        registered = register_features(
+            features_input=features.outputs.features_output,
+            data_name=feature_data_name
+        )
+
         # Train model
         model = train_model(
             features_input=features.outputs.features_output
@@ -197,7 +216,8 @@ def main():
     pipeline_job = eeg_analysis_pipeline(
         Input(path=args.data_name + "@latest", type="uri_file"),
         args.sampling_rate,
-        args.cutoff_frequency
+        args.cutoff_frequency,
+        args.model_name + "_features"
     )
 
     # Set pipeline level compute
