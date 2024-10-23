@@ -54,15 +54,15 @@ def main():
         }
     )
 
-    # Resampling component
-    resampler = command(
-        name="resampler",
-        display_name="resample-data",
+    # Upsampling component
+    upsampler = command(
+        name="upsampler",
+        display_name="upsample-data",
         code=os.path.join(parent_dir, args.jobtype),
-        command="python resampler.py \
+        command="python upsampler.py \
                 --input_data ${{inputs.input_data}} \
                 --output_data ${{outputs.output_data}} \
-                --desired_length 2560",
+                --upsampling_factor 2",
         environment=args.environment_name+"@latest",
         inputs={
             "input_data": Input(type="uri_folder")
@@ -93,20 +93,20 @@ def main():
         }
     )
 
-    # Final preprocessing component
-    prep_data = command(
-        name="prep_data",
-        display_name="prep-data",
+    # Downsampling component
+    downsampler = command(
+        name="downsampler",
+        display_name="downsample-data",
         code=os.path.join(parent_dir, args.jobtype),
-        command="python prep.py \
-                --filtered_data ${{inputs.filtered_data}} \
-                --processed_data ${{outputs.processed_data}}",
+        command="python downsampler.py \
+                --input_data ${{inputs.input_data}} \
+                --output_data ${{outputs.output_data}}",
         environment=args.environment_name+"@latest",
         inputs={
-            "filtered_data": Input(type="uri_folder")
+            "input_data": Input(type="uri_folder")
         },
         outputs={
-            "processed_data": Output(type="uri_folder")
+            "output_data": Output(type="uri_folder")
         }
     )
 
@@ -146,33 +146,36 @@ def main():
         }
     )
 
-    @pipeline()
+    @pipeline(
+        description="EEG Analysis Pipeline for Depression Classification",
+        display_name="EEG-Analysis-Pipeline"
+    )
     def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency):
         # Load data
         load = data_loader(
             input_data=raw_data
         )
 
-        # Resample data
-        resample = resampler(
+        # Upsample data
+        upsampled = upsampler(
             input_data=load.outputs.output_data
         )
 
         # Apply filtering
         filtered = filter_data(
-            input_data=resample.outputs.output_data,
+            input_data=upsampled.outputs.output_data,
             sampling_rate=sampling_rate,
             cutoff_frequency=cutoff_frequency
         )
 
-        # Final preprocessing
-        prep = prep_data(
-            filtered_data=filtered.outputs.output_data
+        # Downsample filtered data
+        processed = downsampler(
+            input_data=filtered.outputs.output_data
         )
 
         # Extract features
         features = extract_features(
-            processed_data=prep.outputs.processed_data,
+            processed_data=processed.outputs.output_data,
             sampling_rate=sampling_rate
         )
 
@@ -183,9 +186,9 @@ def main():
 
         return {
             "loaded_data": load.outputs.output_data,
-            "resampled_data": resample.outputs.output_data,
+            "upsampled_data": upsampled.outputs.output_data,
             "filtered_data": filtered.outputs.output_data,
-            "processed_data": prep.outputs.processed_data,
+            "processed_data": processed.outputs.output_data,
             "features": features.outputs.features_output,
             "trained_model": model.outputs.model_output
         }
@@ -201,6 +204,10 @@ def main():
     pipeline_job.settings.default_compute = args.compute_name
     # Set pipeline level datastore
     pipeline_job.settings.default_datastore = "workspaceblobstore"
+    # Add pipeline settings
+    pipeline_job.settings.continue_on_step_failure = False
+    pipeline_job.settings.force_rerun = True
+    pipeline_job.settings.default_timeout = 3600
 
     # Submit and monitor pipeline job
     pipeline_job = ml_client.jobs.create_or_update(

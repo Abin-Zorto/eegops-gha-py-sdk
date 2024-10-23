@@ -1,15 +1,14 @@
-# extract_features.py
 import argparse
 from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.signal import welch
+from scipy.stats import skew, kurtosis, entropy
 import nolds
 import mlflow
 import logging
 import time
-from typing import Dict, Any
-from scipy.stats import skew, kurtosis
+from typing import Dict, Any, List, Tuple
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,51 +21,124 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def band_power(data: np.ndarray, sf: int, band: tuple, window_length: int) -> float:
-    """Calculate power in a specific frequency band."""
+def validate_data(data: np.ndarray) -> Tuple[bool, str]:
+    """Validate data before feature extraction."""
     try:
-        f, Pxx = welch(data, sf, nperseg=window_length)
+        if not isinstance(data, np.ndarray):
+            return False, "Data is not a numpy array"
+        if len(data) == 0:
+            return False, "Empty data array"
+        if np.any(np.isnan(data)):
+            return False, "Data contains NaN values"
+        if np.any(np.isinf(data)):
+            return False, "Data contains infinite values"
+        return True, "Data validation passed"
+    except Exception as e:
+        return False, f"Validation error: {str(e)}"
+
+def band_power(data: np.ndarray, sf: int, band: tuple, window_length: int) -> float:
+    """Calculate power in a specific frequency band with validation."""
+    try:
+        valid, message = validate_data(data)
+        if not valid:
+            logger.warning(f"Band power calculation: {message}")
+            return np.nan
+            
+        f, Pxx = welch(data, sf, nperseg=min(window_length, len(data)))
         ind_min = np.argmax(f > band[0]) - 1
         ind_max = np.argmax(f > band[1]) - 1
-        return np.trapz(Pxx[ind_min: ind_max], f[ind_min: ind_max])
+        power = np.trapz(Pxx[ind_min: ind_max], f[ind_min: ind_max])
+        
+        # Validate power calculation
+        if np.isnan(power) or np.isinf(power):
+            logger.warning("Invalid power value calculated")
+            return np.nan
+            
+        return power
     except Exception as e:
         logger.warning(f"Error calculating band power: {str(e)}")
         return np.nan
 
-def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
-    """Compute various complexity measures with error handling."""
-    features = {}
+def compute_entropy_features(data: np.ndarray) -> Dict[str, float]:
+    """Compute entropy-based features."""
     try:
+        valid, message = validate_data(data)
+        if not valid:
+            logger.warning(f"Entropy calculation: {message}")
+            return {k: np.nan for k in ['sample_entropy', 'spectral_entropy']}
+            
+        # Sample entropy
+        sample_entropy = nolds.sampen(data)
+        
+        # Spectral entropy
+        f, Pxx = welch(data, nperseg=min(len(data), 256))
+        psd_norm = Pxx / np.sum(Pxx)
+        spectral_entropy = entropy(psd_norm)
+        
+        return {
+            'sample_entropy': sample_entropy,
+            'spectral_entropy': spectral_entropy
+        }
+    except Exception as e:
+        logger.warning(f"Error computing entropy features: {str(e)}")
+        return {k: np.nan for k in ['sample_entropy', 'spectral_entropy']}
+
+def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
+    """Compute various complexity measures with validation."""
+    try:
+        valid, message = validate_data(data)
+        if not valid:
+            logger.warning(f"Complexity calculation: {message}")
+            return {k: np.nan for k in ['hfd', 'corr_dim', 'hurst', 'lyap_r', 'dfa']}
+            
+        features = {}
+        # Higuchi Fractal Dimension
         features['hfd'] = nolds.hfd(data, Kmax=10)
+        # Correlation Dimension
         features['corr_dim'] = nolds.corr_dim(data, emb_dim=10)
+        # Hurst Exponent
         features['hurst'] = nolds.hurst_rs(data)
-        features['lyap_r'] = nolds.lyap_r(data, emb_dim=10)
+        # Largest Lyapunov Exponent
+        features['lyap_r'] = nolds.lyap_r(data, emb_dim=10, lag=int(len(data)/10))
+        # Detrended Fluctuation Analysis
         features['dfa'] = nolds.dfa(data)
+        
+        return features
     except Exception as e:
         logger.warning(f"Error computing complexity measures: {str(e)}")
-        features = {k: np.nan for k in ['hfd', 'corr_dim', 'hurst', 'lyap_r', 'dfa']}
-    return features
+        return {k: np.nan for k in ['hfd', 'corr_dim', 'hurst', 'lyap_r', 'dfa']}
 
 def compute_statistical_features(data: np.ndarray) -> Dict[str, float]:
-    """Compute statistical features of the signal."""
+    """Compute statistical features with validation."""
     try:
+        valid, message = validate_data(data)
+        if not valid:
+            logger.warning(f"Statistical calculation: {message}")
+            return {k: np.nan for k in ['mean', 'std', 'skewness', 'kurtosis', 'rms',
+                                      'zero_crossings', 'peak_to_peak', 'variance',
+                                      'mean_abs_deviation']}
+        
         return {
             'mean': np.mean(data),
             'std': np.std(data),
+            'variance': np.var(data),
             'skewness': skew(data),
             'kurtosis': kurtosis(data),
             'rms': np.sqrt(np.mean(np.square(data))),
             'zero_crossings': np.sum(np.diff(np.signbit(data))),
-            'peak_to_peak': np.ptp(data)
+            'peak_to_peak': np.ptp(data),
+            'mean_abs_deviation': np.mean(np.abs(data - np.mean(data)))
         }
     except Exception as e:
         logger.warning(f"Error computing statistical features: {str(e)}")
-        return {k: np.nan for k in ['mean', 'std', 'skewness', 'kurtosis', 'rms', 
-                                   'zero_crossings', 'peak_to_peak']}
+        return {k: np.nan for k in ['mean', 'std', 'skewness', 'kurtosis', 'rms',
+                                   'zero_crossings', 'peak_to_peak', 'variance',
+                                   'mean_abs_deviation']}
 
 def compute_features(channel_data: np.ndarray, sf: int) -> Dict[str, Any]:
-    """Compute all features for a channel."""
+    """Compute all features for a channel with comprehensive logging."""
     features = {}
+    feature_computation_times = {}
     
     # Frequency bands
     bands = {
@@ -78,54 +150,69 @@ def compute_features(channel_data: np.ndarray, sf: int) -> Dict[str, Any]:
     }
     
     # Calculate band powers
+    start_time = time.time()
     for band_name, band_range in bands.items():
         features[f'bp_{band_name}'] = band_power(channel_data, sf, band_range, len(channel_data))
+    feature_computation_times['band_powers'] = time.time() - start_time
     
     # Add complexity measures
+    start_time = time.time()
     features.update(compute_complexity_measures(channel_data))
+    feature_computation_times['complexity'] = time.time() - start_time
     
     # Add statistical features
+    start_time = time.time()
     features.update(compute_statistical_features(channel_data))
+    feature_computation_times['statistical'] = time.time() - start_time
     
-    return features
+    # Add entropy features
+    start_time = time.time()
+    features.update(compute_entropy_features(channel_data))
+    feature_computation_times['entropy'] = time.time() - start_time
+    
+    return features, feature_computation_times
 
 def extract_features_from_df(df: pd.DataFrame, sf: int) -> pd.DataFrame:
-    """Extract features from all channels in the DataFrame."""
+    """Extract features from all channels with comprehensive logging."""
     all_features = []
     channels = ['af7', 'af8', 'tp9', 'tp10']
     
-    feature_computation_times = []
-    missing_feature_counts = []
+    feature_timings = {channel: {} for channel in channels}
+    missing_features = {channel: 0 for channel in channels}
     
+    total_windows = len(df)
     for index, row in df.iterrows():
         if index % 10 == 0:
-            logger.info(f"Processing row {index+1}/{len(df)}")
+            logger.info(f"Processing window {index+1}/{total_windows}")
         
         features = {'Participant': row['Participant']}
         
         for channel in channels:
-            start_time = time.time()
             channel_data = np.array(row[channel])
+            channel_features, computation_times = compute_features(channel_data, sf)
             
-            # Compute features
-            channel_features = compute_features(channel_data, sf)
+            # Track timing statistics
+            for feature_type, time_taken in computation_times.items():
+                if feature_type not in feature_timings[channel]:
+                    feature_timings[channel][feature_type] = []
+                feature_timings[channel][feature_type].append(time_taken)
             
             # Track missing features
             missing_count = sum(1 for v in channel_features.values() if pd.isna(v))
-            missing_feature_counts.append(missing_count)
+            missing_features[channel] += missing_count
             
             # Add channel prefix to features
             for feature_name, value in channel_features.items():
                 features[f'{channel}_{feature_name}'] = value
-            
-            feature_computation_times.append(time.time() - start_time)
         
         all_features.append(features)
     
-    # Log feature extraction metrics
-    mlflow.log_metric("mean_feature_computation_time", np.mean(feature_computation_times))
-    mlflow.log_metric("max_feature_computation_time", np.max(feature_computation_times))
-    mlflow.log_metric("mean_missing_features_per_window", np.mean(missing_feature_counts))
+    # Log detailed metrics
+    for channel in channels:
+        for feature_type, timings in feature_timings[channel].items():
+            mlflow.log_metric(f"{channel}_{feature_type}_mean_time", np.mean(timings))
+            mlflow.log_metric(f"{channel}_{feature_type}_max_time", np.max(timings))
+        mlflow.log_metric(f"{channel}_missing_features", missing_features[channel])
     
     return pd.DataFrame(all_features)
 
@@ -168,12 +255,15 @@ def main():
         df_combined.to_parquet(output_path / "features.parquet")
         
         # Log execution metrics
+        total_time = time.time() - start_time
         mlflow.log_metric("total_features", len(feature_cols))
         mlflow.log_metric("total_samples", len(df_combined))
-        mlflow.log_metric("feature_extraction_time", time.time() - start_time)
+        mlflow.log_metric("feature_extraction_time", total_time)
+        mlflow.log_metric("features_per_second", len(df_combined) / total_time)
         mlflow.log_metric("feature_extraction_status", 1)
         
         logger.info(f"Features saved to: {args.features_output}")
+        logger.info(f"Extracted {len(feature_cols)} features for {len(df_combined)} samples")
         
     except Exception as e:
         logger.error(f"Error in feature extraction: {str(e)}")
