@@ -14,6 +14,7 @@ def parse_args():
     parser = argparse.ArgumentParser("upsampler")
     parser.add_argument("--input_data", type=str, help="Path to input data directory")
     parser.add_argument("--output_data", type=str, help="Path to output data directory")
+    parser.add_argument("--upsampling_factor", type=int, help="Upsampling factor")
     args = parser.parse_args()
     return args
 
@@ -36,7 +37,7 @@ def main():
         
         # Fixed parameters
         channel_names = ['af7', 'af8', 'tp9', 'tp10']
-        target_length = 2560 * 2  # Doubled length for upsampling
+        target_length = 2560 * args.upsampling_factor  # Upsampled length
         
         # Process each group
         for group in ['non_remission', 'remission']:
