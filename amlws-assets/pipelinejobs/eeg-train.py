@@ -110,6 +110,25 @@ def main():
         }
     )
 
+    window_slicer = command(
+        name="window_slicer",
+        display_name="window-slicer",
+        code=os.path.join(parent_dir, args.jobtype),
+        command="python window_slicer.py \
+                --input_data ${{inputs.input_data}} \
+                --output_data ${{outputs.output_data}} \
+                --window_seconds 2 \
+                --sampling_rate ${{inputs.sampling_rate}}",
+        environment=args.environment_name+"@latest",
+        inputs={
+            "input_data": Input(type="uri_folder"),
+            "sampling_rate": Input(type="number")
+        },
+        outputs={
+            "output_data": Output(type="uri_folder")
+        }
+    )
+
     # Feature extraction component
     extract_features = command(
         name="extract_features",
@@ -160,6 +179,37 @@ def main():
         }
     )
 
+    # Model training component using registered features
+    train_model_from_features = command(
+        name="train_model_from_features",
+        display_name="train-model-from-features",
+        code=os.path.join(parent_dir, args.jobtype),
+        command="python train_from_features.py \
+                --registered_features ${{inputs.registered_features}} \
+                --model_output ${{outputs.model_output}}",
+        environment=args.environment_name+"@latest",
+        inputs={
+            "registered_features": Input(type="uri_folder")
+        },
+        outputs={
+            "model_output": Output(type="uri_folder")
+        }
+    )
+
+    # Second stage pipeline for model training
+    @pipeline(
+        description="Model Training Pipeline using Registered Features",
+        display_name="Model-Training-Pipeline"
+    )
+    def model_training_pipeline(registered_features):
+        model = train_model_from_features(
+            registered_features=registered_features
+        )
+
+        return {
+            "trained_model": model.outputs.model_output
+        }
+
     @pipeline(
         description="EEG Analysis Pipeline for Depression Classification",
         display_name="EEG-Analysis-Pipeline"
@@ -183,13 +233,17 @@ def main():
         )
 
         # Downsample filtered data
-        processed = downsampler(
+        downsampled = downsampler(
             input_data=filtered.outputs.output_data
         )
 
+        windowed = window_slicer(
+            input_data=downsampled.outputs.output_data,
+            sampling_rate=sampling_rate
+        )
         # Extract features
         features = extract_features(
-            processed_data=processed.outputs.output_data,
+            processed_data=windowed.outputs.output_data,
             sampling_rate=sampling_rate
         )
 
@@ -198,18 +252,14 @@ def main():
             data_name=feature_data_name
         )
 
-        # Train model
-        model = train_model(
-            features_input=features.outputs.features_output
-        )
-
         return {
             "loaded_data": load.outputs.output_data,
             "upsampled_data": upsampled.outputs.output_data,
             "filtered_data": filtered.outputs.output_data,
-            "processed_data": processed.outputs.output_data,
+            "downsampled_data": downsampled.outputs.output_data,
+            "windowed_data": windowed.outputs.output_data,
             "features": features.outputs.features_output,
-            "trained_model": model.outputs.model_output
+            "registered_features": registered.outputs.registered_features
         }
 
     # Create pipeline job
@@ -234,6 +284,27 @@ def main():
         pipeline_job, experiment_name=args.experiment_name
     )
     ml_client.jobs.stream(pipeline_job.name)
+
+    # Get the registered features output from the preprocessing job
+    registered_features = pipeline_job.outputs["registered_features"]
+
+    # Create and run second pipeline job for model training
+    training_job = model_training_pipeline(
+        registered_features=registered_features
+    )
+
+    # Set pipeline level settings for training job
+    training_job.settings.default_compute = args.compute_name
+    training_job.settings.default_datastore = "workspaceblobstore"
+    training_job.settings.continue_on_step_failure = False
+    training_job.settings.force_rerun = True
+    training_job.settings.default_timeout = 3600
+
+    # Submit and monitor training pipeline job
+    training_job = ml_client.jobs.create_or_update(
+        training_job, experiment_name=args.experiment_name + "_training"
+    )
+    ml_client.jobs.stream(training_job.name)
 
 if __name__ == "__main__":
     main()
