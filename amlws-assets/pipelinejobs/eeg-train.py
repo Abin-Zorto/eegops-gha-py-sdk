@@ -275,7 +275,7 @@ def main():
     # Create pipeline job
     ml_client_json = json.dumps({
         "subscription_id": ml_client.subscription_id,
-        "resource_group": ml_client.resource_group,
+        "resource_group": ml_client.resource_group_name,
         "workspace_name": ml_client.workspace_name
     })
     pipeline_job = eeg_analysis_pipeline(
