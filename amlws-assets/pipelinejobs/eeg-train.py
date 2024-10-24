@@ -152,20 +152,27 @@ def main():
         }
     )
 
+    # Create the MLClient JSON configuration
+    ml_client_json = json.dumps({
+        "subscription_id": ml_client.subscription_id,
+        "resource_group": ml_client.resource_group_name,
+        "workspace_name": ml_client.workspace_name
+    })
+
+    # Pass the JSON string to the register_features command
     register_features = command(
         name="register_features",
         display_name="register-features",
         code=os.path.join(parent_dir, args.jobtype),
-        command="python register_features.py \
+        command=f"python register_features.py \
                 --features_input ${{inputs.features_input}} \
                 --data_name ${{inputs.data_name}} \
                 --registered_features_output ${{outputs.registered_features}} \
-                --ml_client_json ${{inputs.ml_client_json}}",
+                --ml_client_json '{ml_client_json}'",
         environment=args.environment_name+"@latest",
         inputs={
             "features_input": Input(type="uri_folder"),
-            "data_name": Input(type="string"),
-            "ml_client_json": Input(type="string")
+            "data_name": Input(type="string")
         },
         outputs={
             "registered_features": Output(type="uri_file")
@@ -275,11 +282,6 @@ def main():
         }
 
     # Create pipeline job
-    ml_client_json = json.dumps({
-        "subscription_id": ml_client.subscription_id,
-        "resource_group": ml_client.resource_group_name,
-        "workspace_name": ml_client.workspace_name
-    })
     pipeline_job = eeg_analysis_pipeline(
         Input(path=args.data_name + "@latest", type="uri_file"),
         args.sampling_rate,
