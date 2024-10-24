@@ -18,7 +18,6 @@ def parse_args():
     parser.add_argument("--sampling_rate", type=int, default=256, help="EEG Sampling Rate")
     parser.add_argument("--cutoff_frequency", type=int, default=60, help="Filter Cutoff Frequency")
     parser.add_argument("--window_seconds", type=int, default=1, help="Window Size in Seconds")
-    parser.add_argument("--ml_client_json", type=str, help="JSON string of MLClient configuration")
     args = parser.parse_args()
     return args
 
@@ -168,12 +167,13 @@ def main():
                 --features_input ${{inputs.features_input}} \
                 --data_name ${{inputs.data_name}} \
                 --registered_features_output ${{outputs.registered_features}} \
-                --ml_client_json '{ml_client_json}'",
+                --subscription_id '{subscription_id}' \
+                --resource_group '{resource_group}' \
+                --workspace_name '{workspace_name}'",
         environment=args.environment_name+"@latest",
         inputs={
             "features_input": Input(type="uri_folder"),
-            "data_name": Input(type="string"),
-            "ml_client_json": Input(type="string")
+            "data_name": Input(type="string")
         },
         outputs={
             "registered_features": Output(type="uri_file")
@@ -268,8 +268,7 @@ def main():
 
         registered = register_features(
             features_input=features.outputs.features_output,
-            data_name=feature_data_name,
-            ml_client_json=ml_client_json
+            data_name=feature_data_name
         )
 
         return {
