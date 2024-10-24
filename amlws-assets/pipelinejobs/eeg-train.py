@@ -162,14 +162,20 @@ def main():
                 --registered_features_output ${{outputs.registered_features}} \
                 --subscription_id ${{inputs.subscription_id}} \
                 --resource_group ${{inputs.resource_group}} \
-                --workspace_name ${{inputs.workspace_name}}",
+                --workspace_name ${{inputs.workspace_name}} \
+                --client_id ${{inputs.client_id}} \
+                --client_secret ${{inputs.client_secret}} \
+                --tenant_id ${{inputs.tenant_id}}",
         environment=args.environment_name+"@latest",
         inputs={
             "features_input": Input(type="uri_folder"),
             "data_name": Input(type="string"),
             "subscription_id": Input(type="string"),
             "resource_group": Input(type="string"),
-            "workspace_name": Input(type="string")
+            "workspace_name": Input(type="string"),
+            "client_id": Input(type="string"),
+            "client_secret": Input(type="string"),
+            "tenant_id": Input(type="string")
         },
         outputs={
             "registered_features": Output(type="uri_file")
@@ -267,7 +273,10 @@ def main():
             data_name=feature_data_name,
             subscription_id=ml_client.subscription_id,
             resource_group=ml_client.resource_group_name,
-            workspace_name=ml_client.workspace_name
+            workspace_name=ml_client.workspace_name,
+            client_id=os.environ["AZURE_CLIENT_ID"],
+            client_secret=os.environ["AZURE_CLIENT_SECRET"],
+            tenant_id=os.environ["AZURE_TENANT_ID"]
         )
 
         return {

@@ -24,6 +24,9 @@ def parse_args():
     parser.add_argument("--subscription_id", type=str, help="Azure subscription ID")
     parser.add_argument("--resource_group", type=str, help="Azure resource group name")
     parser.add_argument("--workspace_name", type=str, help="Azure ML workspace name")
+    parser.add_argument("--client_id", type=str, help="Azure client ID")
+    parser.add_argument("--client_secret", type=str, help="Azure client secret")
+    parser.add_argument("--tenant_id", type=str, help="Azure tenant ID")
     args = parser.parse_args()
     return args
 
@@ -37,9 +40,9 @@ def main():
         # Initialize MLClient
         logger.info("Initializing MLClient...")
         credential = ClientSecretCredential(
-            client_id=os.environ["AZURE_CLIENT_ID"],
-            client_secret=os.environ["AZURE_CLIENT_SECRET"],
-            tenant_id=os.environ["AZURE_TENANT_ID"]
+            client_id=args.client_id,
+            client_secret=args.client_secret,
+            tenant_id=args.tenant_id
         )
         ml_client = MLClient(
             credential=credential,
