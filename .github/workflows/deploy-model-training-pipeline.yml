@@ -108,7 +108,7 @@ jobs:
           compute_name: "cpu-cluster"
           model_name: "automl"
           jobtype: "automl"
-          version: "1.0.1"
+          version: "1.0.2"
           pipeline_path: ${{ needs.get-config.outputs.pipeline_file }}
           data_name: ${{ needs.get-config.outputs.data_name }}
           environment_name: ${{ needs.get-config.outputs.environment_name }}
