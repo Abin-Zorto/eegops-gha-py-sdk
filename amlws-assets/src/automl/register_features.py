@@ -32,6 +32,7 @@ def main():
         start_time = time.time()
         
         # Initialize MLClient
+        logger.info(f"MLClient JSON: {args.ml_client_json}")
         ml_client_config = json.loads(args.ml_client_json)
         credential = DefaultAzureCredential()
         ml_client = MLClient(
