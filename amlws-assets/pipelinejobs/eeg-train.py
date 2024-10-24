@@ -151,13 +151,6 @@ def main():
         }
     )
 
-    # Create the MLClient JSON configuration
-    ml_client_json = json.dumps({
-        "subscription_id": ml_client.subscription_id,
-        "resource_group": ml_client.resource_group_name,
-        "workspace_name": ml_client.workspace_name
-    })
-
     # Pass the JSON string to the register_features command
     register_features = command(
         name="register_features",
@@ -272,9 +265,9 @@ def main():
         registered = register_features(
             features_input=features.outputs.features_output,
             data_name=feature_data_name,
-            subscription_id=ml_client_json["subscription_id"],
-            resource_group=ml_client_json["resource_group"],
-            workspace_name=ml_client_json["workspace_name"]
+            subscription_id=ml_client.subscription_id,
+            resource_group=ml_client.resource_group_name,
+            workspace_name=ml_client.workspace_name
         )
 
         return {
