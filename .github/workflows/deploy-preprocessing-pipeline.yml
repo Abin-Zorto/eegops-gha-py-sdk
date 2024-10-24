@@ -101,15 +101,13 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
+          pipeline_path: amlws-assets/pipelinejobs/eeg-train.py
           experiment_name: "dev-eegops-automl-classification"
-          sampling_rate: 256
-          cutoff_frequency: 60
-          window_seconds: 1
-          compute_name: "cpu-cluster"
-          model_name: "automl"
-          jobtype: "automl"
-          version: "1.0.2"
-          pipeline_path: ${{ needs.get-config.outputs.pipeline_file }}
           data_name: ${{ needs.get-config.outputs.data_name }}
           environment_name: ${{ needs.get-config.outputs.environment_name }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          compute_name: "cpu-cluster"
+          model_name: "automl"
+          jobtype: "automl"
+          version: "1.0.3"
+
