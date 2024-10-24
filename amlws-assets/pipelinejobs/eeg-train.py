@@ -154,11 +154,15 @@ def main():
         code=os.path.join(parent_dir, args.jobtype),
         command="python register_features.py \
                 --features_input ${{inputs.features_input}} \
-                --data_name ${{inputs.data_name}}",
+                --data_name features \
+                --registered_features_output ${{outputs.registered_features}}",
         environment=args.environment_name+"@latest",
         inputs={
             "features_input": Input(type="uri_folder"),
             "data_name": Input(type="string")
+        },
+        outputs={
+            "registered_features": Output(type="uri_file")
         }
     )
 
@@ -189,7 +193,7 @@ def main():
                 --model_output ${{outputs.model_output}}",
         environment=args.environment_name+"@latest",
         inputs={
-            "registered_features": Input(type="uri_folder")
+            "registered_features": Input(type="mltable")
         },
         outputs={
             "model_output": Output(type="uri_folder")

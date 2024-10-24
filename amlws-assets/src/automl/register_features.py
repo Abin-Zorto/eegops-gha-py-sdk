@@ -18,6 +18,7 @@ def parse_args():
     parser.add_argument("--features_input", type=str, help="Path to features parquet file")
     parser.add_argument("--data_name", type=str, help="Name for registered data asset")
     parser.add_argument("--description", type=str, default="EEG features for depression classification")
+    parser.add_argument("--registered_features_output", type=str, help="Path to output registered features")
     args = parser.parse_args()
     return args
 
@@ -51,6 +52,11 @@ def main():
         mlflow.log_metric("registration_status", 1)
         
         logger.info(f"Features registered as MLTable: {registered_data.name}, version: {registered_data.version}")
+        
+        # Save the registered features path
+        with open(args.registered_features_output, "w") as f:
+            f.write(registered_data.path)
+        logger.info(f"Registered features path saved to: {args.registered_features_output}")
         
     except Exception as e:
         logger.error(f"Error registering features: {str(e)}")
