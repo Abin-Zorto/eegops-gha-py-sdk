@@ -5,6 +5,7 @@ from azure.identity import ClientSecretCredential
 from azure.ai.ml import MLClient, Input, Output, command
 from azure.ai.ml.dsl import pipeline
 import os
+import json
 
 def parse_args():
     parser = argparse.ArgumentParser("Deploy EEG Analysis Pipeline")
@@ -272,12 +273,18 @@ def main():
         }
 
     # Create pipeline job
+    ml_client_json = json.dumps({
+        "subscription_id": ml_client.subscription_id,
+        "resource_group": ml_client.resource_group,
+        "workspace_name": ml_client.workspace_name
+    })
     pipeline_job = eeg_analysis_pipeline(
         Input(path=args.data_name + "@latest", type="uri_file"),
         args.sampling_rate,
         args.cutoff_frequency,
         args.model_name + "_features",
-        args.window_seconds
+        args.window_seconds,
+        ml_client_json
     )
 
     # Set pipeline level compute
