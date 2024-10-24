@@ -36,13 +36,13 @@ def main():
         
         # Initialize MLClient
         logger.info("Initializing MLClient...")
-        # Use DefaultAzureCredential which will automatically try different authentication methods
-    # This includes environment variables, managed identity, and interactive browser login
         credential = DefaultAzureCredential()
-        
-        # Initialize MLClient using the default credential
-        # This will use the current subscription and workspace from the environment
-        ml_client = MLClient.from_config(credential=credential)
+        ml_client = MLClient(
+            credential=credential,
+            subscription_id=args.subscription_id,
+            resource_group_name=args.resource_group,
+            workspace_name=args.workspace_name
+        )
         
         logger.info(f"Registering features from: {args.features_input}")
         
