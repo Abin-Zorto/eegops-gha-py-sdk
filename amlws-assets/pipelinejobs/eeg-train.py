@@ -168,7 +168,7 @@ def main():
                 --features_input ${{inputs.features_input}} \
                 --data_name ${{inputs.data_name}} \
                 --registered_features_output ${{outputs.registered_features}} \
-                --ml_client_json '{ml_client_json}'",
+                --ml_client_json ${{inputs.ml_client_json}}",
         environment=args.environment_name+"@latest",
         inputs={
             "features_input": Input(type="uri_folder"),
