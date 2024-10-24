@@ -20,7 +20,7 @@ def parse_args():
     parser.add_argument("--features_input", type=str, help="Path to features parquet file")
     parser.add_argument("--data_name", type=str, help="Name for registered data asset")
     parser.add_argument("--description", type=str, default="EEG features for depression classification")
-    parser.add_argument("--registered_features_output", type=str, help="Path to save registered features info")
+    parser.add_argument("--registered_features_output", type=str, help="Directory path to save registered features info")
     parser.add_argument("--subscription_id", type=str, help="Azure subscription ID")
     parser.add_argument("--resource_group", type=str, help="Azure resource group name")
     parser.add_argument("--workspace_name", type=str, help="Azure ML workspace name")
@@ -76,7 +76,7 @@ def main():
         output_path = Path(args.registered_features_output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(output_path, 'w') as f:
+        with open(output_path / "registration_info.json", 'w') as f:
             json.dump(registration_info, f)
         
         # Log registration metrics
