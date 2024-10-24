@@ -18,6 +18,7 @@ def parse_args():
     parser.add_argument("--sampling_rate", type=int, default=256, help="EEG Sampling Rate")
     parser.add_argument("--cutoff_frequency", type=int, default=60, help="Filter Cutoff Frequency")
     parser.add_argument("--window_seconds", type=int, default=1, help="Window Size in Seconds")
+    parser.add_argument("--ml_client_json", type=str, help="JSON string of MLClient configuration")
     args = parser.parse_args()
     return args
 
@@ -223,7 +224,7 @@ def main():
         description="EEG Analysis Pipeline for Depression Classification",
         display_name="EEG-Analysis-Pipeline"
     )
-    def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency, feature_data_name, window_seconds):
+    def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency, feature_data_name, window_seconds, ml_client_json):
         # Load data
         load = data_loader(
             input_data=raw_data
@@ -259,7 +260,8 @@ def main():
 
         registered = register_features(
             features_input=features.outputs.features_output,
-            data_name=feature_data_name
+            data_name=feature_data_name,
+            ml_client_json=ml_client_json
         )
 
         return {
