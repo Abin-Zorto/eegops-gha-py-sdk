@@ -75,7 +75,7 @@ def main():
         }
         
         output_path = Path(args.registered_features_output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.mkdir(parents=True, exist_ok=True)
         
         with open(output_path / "registration_info.json", 'w') as f:
             json.dump(registration_info, f)
