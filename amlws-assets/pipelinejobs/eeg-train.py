@@ -164,7 +164,7 @@ def main():
         name="register_features",
         display_name="register-features",
         code=os.path.join(parent_dir, args.jobtype),
-        command=f"python register_features.py \
+        command="python register_features.py \
                 --features_input ${{inputs.features_input}} \
                 --data_name ${{inputs.data_name}} \
                 --registered_features_output ${{outputs.registered_features}} \
@@ -172,7 +172,8 @@ def main():
         environment=args.environment_name+"@latest",
         inputs={
             "features_input": Input(type="uri_folder"),
-            "data_name": Input(type="string")
+            "data_name": Input(type="string"),
+            "ml_client_json": Input(type="string")
         },
         outputs={
             "registered_features": Output(type="uri_file")
