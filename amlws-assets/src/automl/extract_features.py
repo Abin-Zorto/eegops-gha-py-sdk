@@ -339,6 +339,19 @@ def main():
         output_path.mkdir(parents=True, exist_ok=True)
         df_combined.to_parquet(output_path / "features.parquet")
         
+        # Create MLTable file
+        mltable_content = """
+        paths:
+          - file: ./features.parquet
+        transformations:
+          - read_parquet:
+              include_path_column: false
+        """
+
+        # Write MLTable file
+        with open(output_path / "MLTable", "w") as f:
+            f.write(mltable_content)
+        
         # Log execution metrics
         total_time = time.time() - start_time
         mlflow.log_metric("total_features", len(feature_cols))
