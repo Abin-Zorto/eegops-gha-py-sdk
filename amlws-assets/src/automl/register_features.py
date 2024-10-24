@@ -9,6 +9,7 @@ from azure.identity import DefaultAzureCredential
 import mlflow
 import logging
 import time
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ def parse_args():
     parser.add_argument("--data_name", type=str, help="Name for registered data asset")
     parser.add_argument("--description", type=str, default="EEG features for depression classification")
     parser.add_argument("--registered_features_output", type=str, help="Path to output registered features")
+    parser.add_argument("--ml_client_json", type=str, help="JSON string of MLClient configuration")
     args = parser.parse_args()
     return args
 
@@ -30,8 +32,14 @@ def main():
         start_time = time.time()
         
         # Initialize MLClient
+        ml_client_config = json.loads(args.ml_client_json)
         credential = DefaultAzureCredential()
-        ml_client = MLClient.from_config(credential=credential)
+        ml_client = MLClient(
+            credential=credential,
+            subscription_id=ml_client_config['subscription_id'],
+            resource_group_name=ml_client_config['resource_group'],
+            workspace_name=ml_client_config['workspace_name']
+        )
         
         logger.info(f"Registering features from: {args.features_input}")
         

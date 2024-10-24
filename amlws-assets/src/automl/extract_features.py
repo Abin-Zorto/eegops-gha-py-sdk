@@ -123,23 +123,64 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
         if not valid:
             logger.warning(f"Complexity calculation: {message}")
             return {k: np.nan for k in ['hfd', 'corr_dim', 'hurst', 'lyap_r', 'dfa']}
+        
+        # Ensure data is float64 type and handle NaN/inf values
+        data = np.array(data, dtype=np.float64)
+        if len(data) < 3:  # Need at least 3 points for meaningful measures
+            logger.warning("Data length too short for complexity measures")
+            return {k: np.nan for k in ['hfd', 'corr_dim', 'hurst', 'lyap_r', 'dfa']}
             
         features = {}
+        
         # Higuchi Fractal Dimension
-        features['hfd'] = hfd(data, Kmax=10)
+        try:
+            features['hfd'] = hfd(data, Kmax=10)
+        except Exception as e:
+            logger.warning(f"HFD calculation failed: {str(e)}")
+            features['hfd'] = np.nan
+        
         # Correlation Dimension
-        features['corr_dim'] = nolds.corr_dim(data, emb_dim=10)
+        try:
+            features['corr_dim'] = nolds.corr_dim(data, emb_dim=10)
+        except Exception as e:
+            logger.warning(f"Correlation dimension calculation failed: {str(e)}")
+            features['corr_dim'] = np.nan
+        
         # Hurst Exponent
-        features['hurst'] = nolds.hurst_rs(data)
+        try:
+            features['hurst'] = nolds.hurst_rs(data)
+        except Exception as e:
+            logger.warning(f"Hurst exponent calculation failed: {str(e)}")
+            features['hurst'] = np.nan
+        
         # Largest Lyapunov Exponent
-        features['lyap_r'] = nolds.lyap_r(data, emb_dim=10, lag=int(len(data)/10))
+        try:
+            # Calculate lag based on data length, ensure it's an integer
+            lag = max(1, int(len(data)/10))
+            features['lyap_r'] = nolds.lyap_r(data, emb_dim=10, lag=lag)
+        except Exception as e:
+            logger.warning(f"Lyapunov exponent calculation failed: {str(e)}")
+            features['lyap_r'] = np.nan
+        
         # Detrended Fluctuation Analysis
-        features['dfa'] = nolds.dfa(data)
+        try:
+            features['dfa'] = nolds.dfa(data)
+        except Exception as e:
+            logger.warning(f"DFA calculation failed: {str(e)}")
+            features['dfa'] = np.nan
+        
+        # Validate output values
+        for key, value in features.items():
+            if not np.isfinite(value):
+                logger.warning(f"Invalid {key} value: {value}")
+                features[key] = np.nan
         
         return features
+        
     except Exception as e:
         logger.warning(f"Error computing complexity measures: {str(e)}")
         return {k: np.nan for k in ['hfd', 'corr_dim', 'hurst', 'lyap_r', 'dfa']}
+
 
 def compute_statistical_features(data: np.ndarray) -> Dict[str, float]:
     """Compute statistical features with validation."""
@@ -170,6 +211,16 @@ def compute_statistical_features(data: np.ndarray) -> Dict[str, float]:
 
 def compute_features(channel_data: np.ndarray, sf: int) -> Dict[str, Any]:
     """Compute all features for a channel with comprehensive logging."""
+    # Ensure data is properly formatted
+    try:
+        channel_data = np.array(channel_data, dtype=np.float64)
+        if np.any(np.isnan(channel_data)) or np.any(np.isinf(channel_data)):
+            logger.warning("Channel data contains NaN or Inf values")
+            channel_data = np.nan_to_num(channel_data, nan=0.0, posinf=0.0, neginf=0.0)
+    except Exception as e:
+        logger.error(f"Error converting channel data: {str(e)}")
+        return {}, {}
+
     features = {}
     feature_computation_times = {}
     

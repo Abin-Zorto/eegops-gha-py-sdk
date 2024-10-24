@@ -154,12 +154,14 @@ def main():
         code=os.path.join(parent_dir, args.jobtype),
         command="python register_features.py \
                 --features_input ${{inputs.features_input}} \
-                --data_name features \
-                --registered_features_output ${{outputs.registered_features}}",
+                --data_name ${{inputs.data_name}} \
+                --registered_features_output ${{outputs.registered_features}} \
+                --ml_client_json ${{inputs.ml_client_json}}",
         environment=args.environment_name+"@latest",
         inputs={
             "features_input": Input(type="uri_folder"),
-            "data_name": Input(type="string")
+            "data_name": Input(type="string"),
+            "ml_client_json": Input(type="string")
         },
         outputs={
             "registered_features": Output(type="uri_file")
@@ -243,7 +245,8 @@ def main():
 
         windowed = window_slicer(
             input_data=downsampled.outputs.output_data,
-            sampling_rate=sampling_rate
+            sampling_rate=sampling_rate,
+            window_seconds=1
         )
         # Extract features
         features = extract_features(
