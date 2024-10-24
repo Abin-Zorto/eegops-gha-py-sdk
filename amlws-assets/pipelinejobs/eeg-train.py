@@ -18,6 +18,7 @@ def parse_args():
     parser.add_argument("--sampling_rate", type=int, default=256, help="EEG Sampling Rate")
     parser.add_argument("--cutoff_frequency", type=int, default=60, help="Filter Cutoff Frequency")
     parser.add_argument("--window_seconds", type=int, default=1, help="Window Size in Seconds")
+    parser.add_argument("--version", type=str, help="Version of registered features")
     args = parser.parse_args()
     return args
 
@@ -165,7 +166,8 @@ def main():
                 --workspace_name ${{inputs.workspace_name}} \
                 --client_id ${{inputs.client_id}} \
                 --client_secret ${{inputs.client_secret}} \
-                --tenant_id ${{inputs.tenant_id}}",
+                --tenant_id ${{inputs.tenant_id}} \
+                --version ${{inputs.version}}",
         environment=args.environment_name+"@latest",
         inputs={
             "features_input": Input(type="uri_folder"),
@@ -175,7 +177,8 @@ def main():
             "workspace_name": Input(type="string"),
             "client_id": Input(type="string"),
             "client_secret": Input(type="string"),
-            "tenant_id": Input(type="string")
+            "tenant_id": Input(type="string"),
+            "version": Input(type="string")
         },
         outputs={
             "registered_features": Output(type="uri_file")
@@ -234,7 +237,7 @@ def main():
         description="EEG Analysis Pipeline for Depression Classification",
         display_name="EEG-Analysis-Pipeline"
     )
-    def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency, feature_data_name, window_seconds):
+    def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency, feature_data_name, window_seconds, version):
         # Load data
         load = data_loader(
             input_data=raw_data
@@ -276,7 +279,8 @@ def main():
             workspace_name=ml_client.workspace_name,
             client_id=os.environ["AZURE_CLIENT_ID"],
             client_secret=os.environ["AZURE_CLIENT_SECRET"],
-            tenant_id=os.environ["AZURE_TENANT_ID"]
+            tenant_id=os.environ["AZURE_TENANT_ID"],
+            version=version
         )
 
         return {
@@ -295,7 +299,8 @@ def main():
         args.sampling_rate,
         args.cutoff_frequency,
         args.model_name + "_features",
-        args.window_seconds
+        args.window_seconds,
+        args.version
     )
 
     # Set pipeline level compute

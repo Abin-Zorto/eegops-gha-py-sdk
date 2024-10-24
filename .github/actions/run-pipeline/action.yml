@@ -19,6 +19,12 @@ inputs:
   cutoff_frequency:
     description: 'Cutoff frequency of the data'
     required: true
+  window_seconds:
+    description: 'Window size in seconds'
+    required: true
+  version:
+    description: 'Version of the registered features'
+    required: true
   model_name:
     description: 'Name of the model'
     required: true
@@ -58,5 +64,6 @@ runs:
           --cutoff_frequency "${{ inputs.cutoff_frequency }}" \
           --model_name "${{ inputs.model_name }}" \
           --jobtype "${{ inputs.jobtype }}" \
-          --window_seconds "${{ inputs.window_seconds }}"
+          --window_seconds "${{ inputs.window_seconds }}" \
+          --version "${{ inputs.version }}"
       shell: bash

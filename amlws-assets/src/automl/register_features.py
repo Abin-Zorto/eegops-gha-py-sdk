@@ -27,6 +27,7 @@ def parse_args():
     parser.add_argument("--client_id", type=str, help="Azure client ID")
     parser.add_argument("--client_secret", type=str, help="Azure client secret")
     parser.add_argument("--tenant_id", type=str, help="Azure tenant ID")
+    parser.add_argument("--version", type=str, help="Version of registered features")
     args = parser.parse_args()
     return args
 
@@ -59,7 +60,7 @@ def main():
             type=AssetTypes.MLTABLE,
             description=args.description,
             name=args.data_name,
-            version='1.0.0'
+            version=args.version
         )
         
         # Register the data
