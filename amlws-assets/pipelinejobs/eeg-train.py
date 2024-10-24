@@ -228,7 +228,7 @@ def main():
         description="EEG Analysis Pipeline for Depression Classification",
         display_name="EEG-Analysis-Pipeline"
     )
-    def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency, feature_data_name, window_seconds, ml_client_json):
+    def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency, feature_data_name, window_seconds):
         # Load data
         load = data_loader(
             input_data=raw_data
@@ -286,8 +286,7 @@ def main():
         args.sampling_rate,
         args.cutoff_frequency,
         args.model_name + "_features",
-        args.window_seconds,
-        ml_client_json
+        args.window_seconds
     )
 
     # Set pipeline level compute
