@@ -166,10 +166,7 @@ def main():
         command="python register_features.py \
                 --features_input ${{inputs.features_input}} \
                 --data_name ${{inputs.data_name}} \
-                --registered_features_output ${{outputs.registered_features}} \
-                --subscription_id '{subscription_id}' \
-                --resource_group '{resource_group}' \
-                --workspace_name '{workspace_name}'",
+                --registered_features_output ${{outputs.registered_features}}",
         environment=args.environment_name+"@latest",
         inputs={
             "features_input": Input(type="uri_folder"),
