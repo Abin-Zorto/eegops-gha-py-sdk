@@ -238,7 +238,7 @@ def compute_features(channel_data: np.ndarray, sf: int) -> Dict[str, Any]:
     for band_name, band_range in bands.items():
         features[f'bp_{band_name}'] = band_power(channel_data, sf, band_range, len(channel_data))
     feature_computation_times['band_powers'] = time.time() - start_time
-    
+    '''
     # Add complexity measures
     start_time = time.time()
     features.update(compute_complexity_measures(channel_data))
@@ -253,6 +253,7 @@ def compute_features(channel_data: np.ndarray, sf: int) -> Dict[str, Any]:
     start_time = time.time()
     features.update(compute_entropy_features(channel_data))
     feature_computation_times['entropy'] = time.time() - start_time
+    '''
     
     return features, feature_computation_times
 
