@@ -166,11 +166,17 @@ def main():
         command="python register_features.py \
                 --features_input ${{inputs.features_input}} \
                 --data_name ${{inputs.data_name}} \
-                --registered_features_output ${{outputs.registered_features}}",
+                --registered_features_output ${{outputs.registered_features}} \
+                --subscription_id ${{inputs.subscription_id}} \
+                --resource_group ${{inputs.resource_group}} \
+                --workspace_name ${{inputs.workspace_name}}",
         environment=args.environment_name+"@latest",
         inputs={
             "features_input": Input(type="uri_folder"),
-            "data_name": Input(type="string")
+            "data_name": Input(type="string"),
+            "subscription_id": Input(type="string"),
+            "resource_group": Input(type="string"),
+            "workspace_name": Input(type="string")
         },
         outputs={
             "registered_features": Output(type="uri_file")
@@ -265,7 +271,10 @@ def main():
 
         registered = register_features(
             features_input=features.outputs.features_output,
-            data_name=feature_data_name
+            data_name=feature_data_name,
+            subscription_id=ml_client_json["subscription_id"],
+            resource_group=ml_client_json["resource_group"],
+            workspace_name=ml_client_json["workspace_name"]
         )
 
         return {
