@@ -13,17 +13,29 @@ inputs:
   compute_name:
     description: 'Name of the compute cluster'
     required: true
-  enable_monitoring:
-    description: 'Enable monitoring flag'
+  sampling_rate:
+    description: 'Sampling rate of the data'
+    required: false
+  cutoff_frequency:
+    description: 'Cutoff frequency of the data'
+    required: false
+  window_seconds:
+    description: 'Window size in seconds'
+    required: false
+  version:
+    description: 'Version of the registered features'
     required: true
-  table_name:
-    description: 'Name of the monitoring table'
+  model_name:
+    description: 'Name of the model'
     required: true
-  pipeline_path:
-    description: 'Path to the pipeline script'
+  jobtype:
+    description: 'Type of the job'
     required: true
   azure_credentials:
     description: 'Azure credentials'
+    required: true
+  pipeline_path:
+    description: 'Path to the pipeline script'
     required: true
 runs:
   using: 'composite'
@@ -48,8 +60,10 @@ runs:
           --data_name "${{ inputs.data_name }}" \
           --environment_name "${{ inputs.environment_name }}" \
           --compute_name "${{ inputs.compute_name }}" \
-          --enable_monitoring "${{ inputs.enable_monitoring }}" \
-          --table_name "${{ inputs.table_name }}" \
+          --sampling_rate "${{ inputs.sampling_rate }}" \
+          --cutoff_frequency "${{ inputs.cutoff_frequency }}" \
           --model_name "${{ inputs.model_name }}" \
-          --jobtype "${{ inputs.jobtype }}"
+          --jobtype "${{ inputs.jobtype }}" \
+          --window_seconds "${{ inputs.window_seconds }}" \
+          --version "${{ inputs.version }}"
       shell: bash

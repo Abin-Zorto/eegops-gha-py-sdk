@@ -1,16 +1,16 @@
 import argparse
 from pathlib import Path
 import pandas as pd
-import numpy as np
 import mlflow
 import logging
-import json
 import time
 from azureml.train.automl import AutoMLConfig
 from azureml.core import Run
 from sklearn.model_selection import LeaveOneGroupOut
 from mlflow.models.signature import infer_signature
 from typing import Dict, Any, Tuple
+import json
+import numpy as np
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -24,11 +24,10 @@ class WrappedModel(mlflow.pyfunc.PythonModel):
         return self.model.predict(model_input)
 
 def parse_args():
-    parser = argparse.ArgumentParser("train")
-    parser.add_argument("--features_input", type=str, help="Path to features data")
+    parser = argparse.ArgumentParser("train_from_features")
+    parser.add_argument("--registered_features", type=str, help="Path to registered features data")
     parser.add_argument("--model_output", type=str, help="Path to model output")
-    parser.add_argument("--experiment_timeout", type=int, default=15,
-                       help="Experiment timeout in minutes")
+    parser.add_argument("--experiment_timeout", type=int, default=15, help="Experiment timeout in minutes")
     args = parser.parse_args()
     return args
 
@@ -59,8 +58,6 @@ def load_and_validate_data(features_path: Path) -> Tuple[pd.DataFrame, Dict[str,
 
 def create_automl_config(df: pd.DataFrame, groups: np.ndarray, run: Run) -> AutoMLConfig:
     """Create AutoML configuration with comprehensive settings."""
-    
-    # Calculate optimal timeout based on data size
     samples_per_participant = len(df) / len(np.unique(groups))
     logger.info(f"Average samples per participant: {samples_per_participant:.2f}")
     
@@ -70,21 +67,15 @@ def create_automl_config(df: pd.DataFrame, groups: np.ndarray, run: Run) -> Auto
         training_data=df,
         label_column_name='Remission',
         compute_target=run.get_environment(),
-        
-        # Training settings
         enable_early_stopping=True,
         experiment_timeout_minutes=15,
         iteration_timeout_minutes=5,
         max_concurrent_iterations=4,
         max_cores_per_iteration=-1,
         verbosity=logging.INFO,
-        
-        # Cross-validation settings
         cv=LeaveOneGroupOut(),
         cv_groups=groups,
-        n_cross_validations=None,  # Using LOGO instead
-        
-        # Model selection
+        n_cross_validations=None,
         blocked_models=['TensorFlowDNN', 'TensorFlowLinearClassifier'],
         allowed_models=[
             'LogisticRegression',
@@ -94,8 +85,6 @@ def create_automl_config(df: pd.DataFrame, groups: np.ndarray, run: Run) -> Auto
             'ExtremeRandomTrees',
             'GradientBoosting'
         ],
-        
-        # Feature engineering
         model_explainability=True,
         enable_onnx_compatible_models=False,
         featurization={
@@ -106,11 +95,8 @@ def create_automl_config(df: pd.DataFrame, groups: np.ndarray, run: Run) -> Auto
         }
     )
 
-def save_training_results(fitted_model: Any, df: pd.DataFrame, 
-                         automl_run: Any, output_path: Path):
+def save_training_results(fitted_model: Any, df: pd.DataFrame, automl_run: Any, output_path: Path):
     """Save comprehensive training results and artifacts."""
-    
-    # Save feature importance if available
     if hasattr(fitted_model, 'feature_importances_'):
         feature_cols = df.drop(['Participant', 'Remission'], axis=1).columns
         feature_importance = pd.DataFrame({
@@ -118,20 +104,16 @@ def save_training_results(fitted_model: Any, df: pd.DataFrame,
             'Importance': fitted_model.feature_importances_
         }).sort_values('Importance', ascending=False)
         
-        # Save and log feature importance
         feature_importance.to_csv(output_path / 'feature_importance.csv', index=False)
         mlflow.log_artifact(output_path / 'feature_importance.csv')
         
-        # Log top features
         for idx, row in feature_importance.head(10).iterrows():
             mlflow.log_metric(f"top_feature_{idx+1}_importance", row['Importance'])
 
-    # Save cross-validation results
     cv_results = pd.DataFrame(automl_run.get_cv_results())
     cv_results.to_csv(output_path / 'cv_results.csv', index=False)
     mlflow.log_artifact(output_path / 'cv_results.csv')
     
-    # Log CV metrics
     cv_metrics = {
         'auc_mean': cv_results['AUC_weighted'].mean(),
         'auc_std': cv_results['AUC_weighted'].std(),
@@ -144,11 +126,9 @@ def save_training_results(fitted_model: Any, df: pd.DataFrame,
         'f1_mean': cv_results['f1-score'].mean(),
         'f1_std': cv_results['f1-score'].std()
     }
-    
     for metric_name, value in cv_metrics.items():
         mlflow.log_metric(f"cv_{metric_name}", value)
 
-    # Save model details
     model_details = {
         'best_model_algorithm': type(fitted_model).__name__,
         'cv_folds': len(np.unique(df['Participant'])),
@@ -170,41 +150,33 @@ def main():
     run = Run.get_context()
     
     try:
-        # Load and validate data
-        features_path = Path(args.features_input) / "features.parquet"
+        features_path = Path(args.registered_features) / "features.parquet"
         df, data_stats = load_and_validate_data(features_path)
         groups = df['Participant'].values
         
-        # Create and log AutoML configuration
         automl_config = create_automl_config(df, groups, run)
         logger.info("Starting AutoML training...")
         logger.info(f"Number of CV folds (participants): {len(np.unique(groups))}")
         
-        # Run AutoML
         training_start = time.time()
         automl_run = run.submit_child(automl_config, show_output=True)
         automl_run.wait_for_completion(show_output=True)
         training_time = time.time() - training_start
         
-        # Get best model and results
         best_run, fitted_model = automl_run.get_output()
         
-        # Log training metrics
         mlflow.log_metric("total_training_time", training_time)
         mlflow.log_metric("training_samples_per_second", len(df) / training_time)
         
-        # Save results
         output_path = Path(args.model_output)
         output_path.mkdir(parents=True, exist_ok=True)
         save_training_results(fitted_model, df, automl_run, output_path)
         
-        # Create and save wrapped model
         wrapped_model = WrappedModel(fitted_model)
         signature = infer_signature(
             df.drop(['Participant', 'Remission'], axis=1),
             fitted_model.predict(df.drop(['Participant', 'Remission'], axis=1))
         )
-        
         mlflow.pyfunc.save_model(
             path=args.model_output,
             python_model=wrapped_model,
