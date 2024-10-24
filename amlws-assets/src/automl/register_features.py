@@ -5,7 +5,7 @@ import pandas as pd
 from azure.ai.ml import MLClient
 from azure.ai.ml.entities import Data
 from azure.ai.ml.constants import AssetTypes
-from azure.identity import DefaultAzureCredential
+from azure.identity import ClientSecretCredential
 import os
 import mlflow
 import logging
@@ -36,7 +36,11 @@ def main():
         
         # Initialize MLClient
         logger.info("Initializing MLClient...")
-        credential = DefaultAzureCredential()
+        credential = ClientSecretCredential(
+            client_id=os.environ["AZURE_CLIENT_ID"],
+            client_secret=os.environ["AZURE_CLIENT_SECRET"],
+            tenant_id=os.environ["AZURE_TENANT_ID"]
+        )
         ml_client = MLClient(
             credential=credential,
             subscription_id=args.subscription_id,
