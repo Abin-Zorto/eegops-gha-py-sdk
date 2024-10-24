@@ -104,6 +104,7 @@ jobs:
           experiment_name: "dev-eegops-automl-classification"
           sampling_rate: 256
           cutoff_frequency: 60
+          window_seconds: 1
           compute_name: "cpu-cluster"
           model_name: "automl"
           jobtype: "automl"

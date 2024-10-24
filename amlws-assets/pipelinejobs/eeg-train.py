@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument("--environment_name", type=str, help="Registered Environment Name")
     parser.add_argument("--sampling_rate", type=int, default=256, help="EEG Sampling Rate")
     parser.add_argument("--cutoff_frequency", type=int, default=60, help="Filter Cutoff Frequency")
+    parser.add_argument("--window_seconds", type=int, default=1, help="Window Size in Seconds")
     args = parser.parse_args()
     return args
 
@@ -117,12 +118,13 @@ def main():
         command="python window_slicer.py \
                 --input_data ${{inputs.input_data}} \
                 --output_data ${{outputs.output_data}} \
-                --window_seconds 2 \
+                --window_seconds ${{inputs.window_seconds}} \
                 --sampling_rate ${{inputs.sampling_rate}}",
         environment=args.environment_name+"@latest",
         inputs={
             "input_data": Input(type="uri_folder"),
-            "sampling_rate": Input(type="number")
+            "sampling_rate": Input(type="number"),
+            "window_seconds": Input(type="number")
         },
         outputs={
             "output_data": Output(type="uri_folder")
@@ -220,7 +222,7 @@ def main():
         description="EEG Analysis Pipeline for Depression Classification",
         display_name="EEG-Analysis-Pipeline"
     )
-    def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency, feature_data_name):
+    def eeg_analysis_pipeline(raw_data, sampling_rate, cutoff_frequency, feature_data_name, window_seconds):
         # Load data
         load = data_loader(
             input_data=raw_data
@@ -246,7 +248,7 @@ def main():
         windowed = window_slicer(
             input_data=downsampled.outputs.output_data,
             sampling_rate=sampling_rate,
-            window_seconds=1
+            window_seconds=window_seconds
         )
         # Extract features
         features = extract_features(
@@ -274,7 +276,8 @@ def main():
         Input(path=args.data_name + "@latest", type="uri_file"),
         args.sampling_rate,
         args.cutoff_frequency,
-        args.model_name + "_features"
+        args.model_name + "_features",
+        args.window_seconds
     )
 
     # Set pipeline level compute

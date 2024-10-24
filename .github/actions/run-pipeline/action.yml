@@ -57,5 +57,6 @@ runs:
           --sampling_rate "${{ inputs.sampling_rate }}" \
           --cutoff_frequency "${{ inputs.cutoff_frequency }}" \
           --model_name "${{ inputs.model_name }}" \
-          --jobtype "${{ inputs.jobtype }}"
+          --jobtype "${{ inputs.jobtype }}" \
+          --window_seconds "${{ inputs.window_seconds }}"
       shell: bash
