@@ -15,13 +15,13 @@ inputs:
     required: true
   sampling_rate:
     description: 'Sampling rate of the data'
-    required: true
+    required: false
   cutoff_frequency:
     description: 'Cutoff frequency of the data'
-    required: true
+    required: false
   window_seconds:
     description: 'Window size in seconds'
-    required: true
+    required: false
   version:
     description: 'Version of the registered features'
     required: true
