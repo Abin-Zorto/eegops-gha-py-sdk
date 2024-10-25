@@ -87,12 +87,7 @@ def create_automl_config(df: pd.DataFrame, groups: np.ndarray, run: Run) -> Auto
         ],
         model_explainability=True,
         enable_onnx_compatible_models=False,
-        featurization={
-            'feature_normalization': 'MinMax',
-            'drop_columns': ['Participant'],
-            'categorical_imputation': 'most_frequent',
-            'numeric_imputation': 'mean'
-        }
+        featurization='auto'  # Changed from dict to 'auto'
     )
 
 def save_training_results(fitted_model: Any, df: pd.DataFrame, automl_run: Any, output_path: Path):
