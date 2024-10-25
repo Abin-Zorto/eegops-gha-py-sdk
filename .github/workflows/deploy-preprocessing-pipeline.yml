@@ -91,7 +91,7 @@ jobs:
           size: Standard_DS3_v2
           min_instances: 0
           max_instances: 4
-          cluster_tier: low_priority
+          cluster_tier: dedicated
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Run model training pipeline
@@ -101,13 +101,13 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
-          experiment_name: "dev-taxi-fare-training-regression"
-          table_name: "taximonitoring"
-          model_name: "randomforest"
-          pipeline_path: amlws-assets/pipelinejobs/dev-train.py
-          jobtype: "randomforest"
-          compute_name: "cpu-cluster"
+          pipeline_path: amlws-assets/pipelinejobs/eeg-train.py
+          experiment_name: "dev-eegops-automl-classification"
           data_name: ${{ needs.get-config.outputs.data_name }}
           environment_name: ${{ needs.get-config.outputs.environment_name }}
-          enable_monitoring: ${{ needs.get-config.outputs.enable_monitoring }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          compute_name: "cpu-cluster"
+          model_name: "automl"
+          jobtype: "automl"
+          version: "1.0.3"
+
