@@ -5,7 +5,7 @@ import mlflow
 import logging
 import time
 from azureml.train.automl import AutoMLConfig
-from azureml.core import Run
+from azureml.core import Run, Dataset
 from sklearn.model_selection import LeaveOneGroupOut
 from mlflow.models.signature import infer_signature
 from typing import Dict, Any, Tuple
@@ -61,10 +61,17 @@ def create_automl_config(df: pd.DataFrame, groups: np.ndarray, run: Run) -> Auto
     samples_per_participant = len(df) / len(np.unique(groups))
     logger.info(f"Average samples per participant: {samples_per_participant:.2f}")
     
+    # Convert DataFrame to TabularDataset
+    dataset = Dataset.Tabular.register_pandas_dataframe(
+        dataframe=df,
+        target=run.experiment.workspace.get_default_datastore(),
+        name='automl_input_dataset'
+    )
+    
     return AutoMLConfig(
         task='classification',
         primary_metric='AUC_weighted',
-        training_data=df,
+        training_data=dataset,  # Use the TabularDataset instead of DataFrame
         label_column_name='Remission',
         compute_target=run.get_environment(),
         enable_early_stopping=True,
@@ -87,7 +94,7 @@ def create_automl_config(df: pd.DataFrame, groups: np.ndarray, run: Run) -> Auto
         ],
         model_explainability=True,
         enable_onnx_compatible_models=False,
-        featurization='auto'  # Changed from dict to 'auto'
+        featurization='auto'
     )
 
 def save_training_results(fitted_model: Any, df: pd.DataFrame, automl_run: Any, output_path: Path):
