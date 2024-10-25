@@ -60,7 +60,7 @@ def main():
     )
     def eeg_train_pipeline():
         # Get the registered MLTable
-        registered_features = Input(type="mltable", path=f"azureml:{args.model_name}_features@{args.version}")
+        registered_features = Input(type="mltable", path=f"{args.model_name}_features@{args.version}")
 
         # Create pipeline job
         pipeline_job = train_model_from_features(
