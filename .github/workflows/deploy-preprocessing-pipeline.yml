@@ -95,7 +95,7 @@ jobs:
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Run model training pipeline
-        uses: ./.github/actions/run-pipeline
+        uses: ./.github/actions/run-preprocess-pipeline
         env:
           AZURE_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
