@@ -110,4 +110,7 @@ jobs:
           model_name: "automl"
           jobtype: "automl"
           version: "1.0.3"
+          cutoff_frequency: 60
+          sampling_rate: 256
+          window_seconds: 1
 
