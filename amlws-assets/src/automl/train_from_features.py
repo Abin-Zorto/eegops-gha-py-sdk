@@ -5,7 +5,7 @@ import mlflow
 import logging
 import time
 from azureml.train.automl import AutoMLConfig
-from azureml.core import Run, Dataset
+from azureml.core import Run
 from azureml.core.dataset import Dataset
 from sklearn.model_selection import LeaveOneGroupOut
 from mlflow.models.signature import infer_signature
@@ -32,15 +32,25 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def load_and_validate_data(features_path: str, run: Run) -> Tuple[Dataset, pd.DataFrame, Dict[str, Any], np.ndarray]:
+def load_and_validate_data(features_path: str, run: Run) -> Tuple[Dataset, Dict[str, Any], np.ndarray]:
     """Load and validate feature data."""
     logger.info(f"Loading features from: {features_path}")
     
-    # Load data using Dataset
+    # Get the workspace
     workspace = run.experiment.workspace
-    dataset = Dataset.get_by_name(workspace, name=features_path)
     
-    # Convert to DataFrame for statistics and validation
+    # Get the dataset name and version from the path
+    # Expected format: azureml:dataset_name:version
+    parts = features_path.split(':')
+    if len(parts) == 3 and parts[0] == 'azureml':
+        dataset_name = parts[1]
+        version = parts[2]
+        dataset = Dataset.get_by_name(workspace, name=dataset_name, version=version)
+    else:
+        # Fallback to reading from local path
+        dataset = Dataset.Tabular.from_delimited_files(features_path)
+    
+    # Convert to DataFrame for statistics
     df = dataset.to_pandas_dataframe()
     
     # Compute data statistics
