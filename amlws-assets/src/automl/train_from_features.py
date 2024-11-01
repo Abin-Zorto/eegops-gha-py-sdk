@@ -4,15 +4,13 @@ import pandas as pd
 import mlflow
 import logging
 import time
-import tempfile
-from azureml.train.automl import AutoMLConfig
-from azureml.core import Run, Dataset
+import numpy as np
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import LeaveOneGroupOut
+from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score, f1_score
 from mlflow.models.signature import infer_signature
 from typing import Dict, Any, Tuple
 import json
-import numpy as np
-import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -29,45 +27,17 @@ def parse_args():
     parser = argparse.ArgumentParser("train_from_features")
     parser.add_argument("--registered_features", type=str, help="Path to registered features data")
     parser.add_argument("--model_output", type=str, help="Path to model output")
-    parser.add_argument("--experiment_timeout", type=int, default=15, help="Experiment timeout in minutes")
     args = parser.parse_args()
     return args
 
-def load_and_validate_data(features_path: str, run: Run) -> Tuple[Dataset, pd.DataFrame, Dict[str, Any], np.ndarray]:
-    """Load and validate feature data from mounted path."""
+def load_and_validate_data(features_path: str) -> Tuple[pd.DataFrame, Dict[str, Any], np.ndarray]:
+    """Load and validate feature data."""
     logger.info(f"Loading features from: {features_path}")
     
     # Load parquet file directly
     features_file = Path(features_path) / "features.parquet"
     logger.info(f"Reading parquet file from: {features_file}")
     df = pd.read_parquet(features_file)
-    
-    # Convert DataFrame to Dataset
-    workspace = run.experiment.workspace
-    datastore = workspace.get_default_datastore()
-    
-    # Create temporary directory
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Save DataFrame temporarily as CSV in the temp directory
-        temp_csv = os.path.join(temp_dir, "temp_features.csv")
-        logger.info(f"Creating temporary CSV file at: {temp_csv}")
-        df.to_csv(temp_csv, index=False)
-        
-        # Upload CSV to datastore
-        logger.info("Uploading CSV to datastore...")
-        temp_data_path = f"temp_data/{run.id}"
-        datastore.upload_files(
-            [temp_csv], 
-            target_path=temp_data_path,
-            overwrite=True
-        )
-        
-        # Create Dataset using the uploaded file
-        dataset = Dataset.Tabular.from_delimited_files(
-            path=[(datastore, f"{temp_data_path}/temp_features.csv")]
-        )
-        
-        # File will be automatically cleaned up when the context manager exits
     
     # Compute data statistics
     stats = {
@@ -89,92 +59,82 @@ def load_and_validate_data(features_path: str, run: Run) -> Tuple[Dataset, pd.Da
     
     groups = df['Participant'].values
     
-    return dataset, df, stats, groups
+    return df, stats, groups
 
-def get_cv_splits(X: pd.DataFrame, groups: np.ndarray) -> list:
-    """Generate cross-validation splits using LeaveOneGroupOut."""
+def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTreeClassifier, Dict[str, float]]:
+    """Train and evaluate model using LOGO CV."""
+    X = df.drop(['Participant', 'Remission'], axis=1)
+    y = df['Remission']
+    
     cv = LeaveOneGroupOut()
-    splits = []
-    for train_idx, val_idx in cv.split(X, groups=groups):
-        splits.append((train_idx.tolist(), val_idx.tolist()))
-    return splits
-
-def create_automl_config(dataset: Dataset, groups: np.ndarray, run: Run) -> AutoMLConfig:
-    """Create AutoML configuration with comprehensive settings."""
-    samples_per_participant = len(dataset.to_pandas_dataframe()) / len(np.unique(groups))
-    logger.info(f"Average samples per participant: {samples_per_participant:.2f}")
-    
-    # Generate CV splits
-    X = dataset.to_pandas_dataframe()
-    cv_splits = get_cv_splits(X, groups)
-    
-    return AutoMLConfig(
-        task='classification',
-        primary_metric='AUC_weighted',
-        training_data=dataset,
-        label_column_name='Remission',
-        enable_early_stopping=True,
-        experiment_timeout_minutes=15,
-        iteration_timeout_minutes=5,
-        max_concurrent_iterations=4,
-        max_cores_per_iteration=-1,
-        verbosity=logging.INFO,
-        n_cross_validations=None,  # Disable default CV
-        user_cv_splits=cv_splits,  # Use custom CV splits
-        blocked_models=['TensorFlowDNN', 'TensorFlowLinearClassifier'],
-        allowed_models=[
-            'LogisticRegression',
-            'RandomForest',
-            'LightGBM',
-            'XGBoostClassifier',
-            'ExtremeRandomTrees',
-            'GradientBoosting'
-        ],
-        model_explainability=True,
-        enable_onnx_compatible_models=False,
-        featurization='auto'
-    )
-
-def save_training_results(fitted_model: Any, df: pd.DataFrame, automl_run: Any, output_path: Path):
-    """Save comprehensive training results and artifacts."""
-    if hasattr(fitted_model, 'feature_importances_'):
-        feature_cols = df.drop(['Participant', 'Remission'], axis=1).columns
-        feature_importance = pd.DataFrame({
-            'Feature': feature_cols,
-            'Importance': fitted_model.feature_importances_
-        }).sort_values('Importance', ascending=False)
-        
-        feature_importance.to_csv(output_path / 'feature_importance.csv', index=False)
-        mlflow.log_artifact(output_path / 'feature_importance.csv')
-        
-        for idx, row in feature_importance.head(10).iterrows():
-            mlflow.log_metric(f"top_feature_{idx+1}_importance", row['Importance'])
-
-    cv_results = pd.DataFrame(automl_run.get_cv_results())
-    cv_results.to_csv(output_path / 'cv_results.csv', index=False)
-    mlflow.log_artifact(output_path / 'cv_results.csv')
-    
     cv_metrics = {
-        'auc_mean': cv_results['AUC_weighted'].mean(),
-        'auc_std': cv_results['AUC_weighted'].std(),
-        'accuracy_mean': cv_results['accuracy'].mean(),
-        'accuracy_std': cv_results['accuracy'].std(),
-        'precision_mean': cv_results['precision'].mean(),
-        'precision_std': cv_results['precision'].std(),
-        'recall_mean': cv_results['recall'].mean(),
-        'recall_std': cv_results['recall'].std(),
-        'f1_mean': cv_results['f1-score'].mean(),
-        'f1_std': cv_results['f1-score'].std()
+        'auc': [],
+        'accuracy': [],
+        'precision': [],
+        'recall': [],
+        'f1': []
     }
-    for metric_name, value in cv_metrics.items():
-        mlflow.log_metric(f"cv_{metric_name}", value)
+    
+    # Train final model on all data
+    final_model = DecisionTreeClassifier(random_state=42)
+    final_model.fit(X, y)
+    
+    # Perform CV for evaluation
+    logger.info("Starting Leave-One-Group-Out Cross Validation...")
+    for fold, (train_idx, val_idx) in enumerate(cv.split(X, y, groups)):
+        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
+        y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
+        
+        # Train model
+        model = DecisionTreeClassifier(random_state=42)
+        model.fit(X_train, y_train)
+        
+        # Get predictions
+        y_pred = model.predict(X_val)
+        y_pred_proba = model.predict_proba(X_val)[:, 1]
+        
+        # Calculate metrics
+        cv_metrics['auc'].append(roc_auc_score(y_val, y_pred_proba))
+        cv_metrics['accuracy'].append(accuracy_score(y_val, y_pred))
+        cv_metrics['precision'].append(precision_score(y_val, y_pred))
+        cv_metrics['recall'].append(recall_score(y_val, y_pred))
+        cv_metrics['f1'].append(f1_score(y_val, y_pred))
+        
+        logger.info(f"Fold {fold + 1}/{len(np.unique(groups))}: AUC = {cv_metrics['auc'][-1]:.3f}")
+    
+    # Calculate mean and std of metrics
+    metrics_summary = {}
+    for metric in cv_metrics:
+        values = cv_metrics[metric]
+        metrics_summary[f'{metric}_mean'] = np.mean(values)
+        metrics_summary[f'{metric}_std'] = np.std(values)
+        
+        # Log metrics to MLflow
+        mlflow.log_metric(f'cv_{metric}_mean', metrics_summary[f'{metric}_mean'])
+        mlflow.log_metric(f'cv_{metric}_std', metrics_summary[f'{metric}_std'])
+    
+    return final_model, metrics_summary
 
+def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metrics: Dict[str, float], output_path: Path):
+    """Save training results and artifacts."""
+    feature_cols = df.drop(['Participant', 'Remission'], axis=1).columns
+    feature_importance = pd.DataFrame({
+        'Feature': feature_cols,
+        'Importance': model.feature_importances_
+    }).sort_values('Importance', ascending=False)
+    
+    feature_importance.to_csv(output_path / 'feature_importance.csv', index=False)
+    mlflow.log_artifact(output_path / 'feature_importance.csv')
+    
+    for idx, row in feature_importance.head(10).iterrows():
+        mlflow.log_metric(f"top_feature_{idx+1}_importance", row['Importance'])
+    
     model_details = {
-        'best_model_algorithm': type(fitted_model).__name__,
+        'model_type': 'DecisionTreeClassifier',
         'cv_folds': len(np.unique(df['Participant'])),
         'features_used': list(df.drop(['Participant', 'Remission'], axis=1).columns),
-        'model_parameters': fitted_model.get_params(),
-        'cross_validation_metrics': cv_metrics,
+        'model_parameters': model.get_params(),
+        'cross_validation_metrics': metrics,
         'training_time': time.time() - start_time
     }
     
@@ -187,34 +147,32 @@ def main():
     start_time = time.time()
     mlflow.start_run()
     args = parse_args()
-    run = Run.get_context()
     
     try:
-        # Load dataset and convert to DataFrame for additional processing
-        dataset, df, data_stats, groups = load_and_validate_data(args.registered_features, run)
+        # Load data
+        df, data_stats, groups = load_and_validate_data(args.registered_features)
         
-        automl_config = create_automl_config(dataset, groups, run)
-        logger.info("Starting AutoML training...")
-        logger.info(f"Number of CV folds (participants): {len(np.unique(groups))}")
+        # Train and evaluate model
+        logger.info("Starting training...")
+        logger.info(f"Number of participants (CV folds): {len(np.unique(groups))}")
         
         training_start = time.time()
-        automl_run = run.submit_child(automl_config, show_output=True)
-        automl_run.wait_for_completion(show_output=True)
+        model, metrics = train_and_evaluate(df, groups)
         training_time = time.time() - training_start
-        
-        best_run, fitted_model = automl_run.get_output()
         
         mlflow.log_metric("total_training_time", training_time)
         mlflow.log_metric("training_samples_per_second", len(df) / training_time)
         
+        # Save results
         output_path = Path(args.model_output)
         output_path.mkdir(parents=True, exist_ok=True)
-        save_training_results(fitted_model, df, automl_run, output_path)
+        save_training_results(model, df, metrics, output_path)
         
-        wrapped_model = WrappedModel(fitted_model)
+        # Save model
+        wrapped_model = WrappedModel(model)
         signature = infer_signature(
             df.drop(['Participant', 'Remission'], axis=1),
-            fitted_model.predict(df.drop(['Participant', 'Remission'], axis=1))
+            model.predict(df.drop(['Participant', 'Remission'], axis=1))
         )
         mlflow.pyfunc.save_model(
             path=args.model_output,
@@ -222,11 +180,10 @@ def main():
             signature=signature
         )
         
-        logger.info(f"Model and results saved to: {args.model_output}")
+        # Log summary metrics
         logger.info("\nCross-validation metrics summary:")
-        cv_results = pd.DataFrame(automl_run.get_cv_results())
-        logger.info(f"Mean AUC: {cv_results['AUC_weighted'].mean():.3f} ± {cv_results['AUC_weighted'].std():.3f}")
-        logger.info(f"Mean Accuracy: {cv_results['accuracy'].mean():.3f} ± {cv_results['accuracy'].std():.3f}")
+        logger.info(f"Mean AUC: {metrics['auc_mean']:.3f} ± {metrics['auc_std']:.3f}")
+        logger.info(f"Mean Accuracy: {metrics['accuracy_mean']:.3f} ± {metrics['accuracy_std']:.3f}")
         
         # Log final success metric
         mlflow.log_metric("training_success", 1)
