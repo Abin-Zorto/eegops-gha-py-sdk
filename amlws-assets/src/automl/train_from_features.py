@@ -6,6 +6,7 @@ import logging
 import time
 from azureml.train.automl import AutoMLConfig
 from azureml.core import Run
+from azureml.data import MLTable
 from sklearn.model_selection import LeaveOneGroupOut
 from mlflow.models.signature import infer_signature
 from typing import Dict, Any, Tuple
@@ -31,10 +32,15 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def load_and_validate_data(features_path: Path) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    """Load and validate feature data."""
+def load_and_validate_data(features_path: str, run: Run) -> Tuple[MLTable, pd.DataFrame, Dict[str, Any], np.ndarray]:
+    """Load and validate feature data from MLTable."""
     logger.info(f"Loading features from: {features_path}")
-    df = pd.read_parquet(features_path)
+    
+    # Load MLTable
+    mltable = MLTable.load(features_path)
+    
+    # Convert to DataFrame for statistics and validation
+    df = mltable.to_pandas_dataframe()
     
     # Compute data statistics
     stats = {
@@ -54,17 +60,18 @@ def load_and_validate_data(features_path: Path) -> Tuple[pd.DataFrame, Dict[str,
         else:
             mlflow.log_metric(f"data_{name}", value)
     
-    return df, stats
+    groups = df['Participant'].values
+    
+    return mltable, df, stats, groups
 
-def create_automl_config(df: pd.DataFrame, groups: np.ndarray, run: Run) -> AutoMLConfig:
+def create_automl_config(mltable: MLTable, groups: np.ndarray, run: Run) -> AutoMLConfig:
     """Create AutoML configuration with comprehensive settings."""
-    samples_per_participant = len(df) / len(np.unique(groups))
-    logger.info(f"Average samples per participant: {samples_per_participant:.2f}")
+    workspace = run.experiment.workspace
     
     return AutoMLConfig(
         task='classification',
         primary_metric='AUC_weighted',
-        training_data=df,
+        training_data=mltable,  # Using MLTable directly
         label_column_name='Remission',
         compute_target=run.get_environment(),
         enable_early_stopping=True,
@@ -145,11 +152,10 @@ def main():
     run = Run.get_context()
     
     try:
-        features_path = Path(args.registered_features) / "features.parquet"
-        df, data_stats = load_and_validate_data(features_path)
-        groups = df['Participant'].values
+        # Load MLTable and convert to DataFrame for additional processing
+        mltable, df, data_stats, groups = load_and_validate_data(args.registered_features, run)
         
-        automl_config = create_automl_config(df, groups, run)
+        automl_config = create_automl_config(mltable, groups, run)
         logger.info("Starting AutoML training...")
         logger.info(f"Number of CV folds (participants): {len(np.unique(groups))}")
         
