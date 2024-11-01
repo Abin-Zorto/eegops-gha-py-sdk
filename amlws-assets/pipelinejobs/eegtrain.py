@@ -96,9 +96,10 @@ def eeg_train_pipeline(registered_features, target_column_name="Remission"):
     )
     error_job.set_limits(timeout=300)
     
-    # Add explanations
+    # Add explanations with required comment parameter
     explanation_job = rai_explanation(
         rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
+        comment="Feature importance and SHAP values for EEG classification model"  # Added required comment
     )
     explanation_job.set_limits(timeout=300)
     
@@ -109,6 +110,7 @@ def eeg_train_pipeline(registered_features, target_column_name="Remission"):
         insight_4=explanation_job.outputs.explanation,
     )
     rai_gather_job.set_limits(timeout=300)
+    
     # Set upload mode for dashboard
     rand_path = str(uuid.uuid4())
     rai_gather_job.outputs.dashboard = Output(
@@ -132,11 +134,14 @@ def main():
         tenant_id=os.environ["AZURE_TENANT_ID"]
     )
     ml_client = MLClient.from_config(credential=credential)
+    
     try:
         print(ml_client.compute.get(args.compute_name))
     except:
         print("No compute found")
+        
     parent_dir = "amlws-assets/src"
+    
     # Get RAI components
     registry_name = "azureml"
     ml_client_registry = MLClient(
@@ -145,7 +150,9 @@ def main():
         resource_group_name=ml_client.resource_group_name,
         registry_name=registry_name,
     )
+    
     rai_components = setup_rai_components(ml_client_registry)
+    
     # Create training component
     global train_model_from_features
     global rai_constructor, rai_error_analysis, rai_explanation, rai_gather
@@ -158,12 +165,14 @@ def main():
     rai_error_analysis = rai_components['error_analysis']
     rai_explanation = rai_components['explanation']
     rai_gather = rai_components['gather']
+    
     # Get the registered MLTable and create pipeline
     registered_features = Input(type="mltable", path=f"azureml:automl_features:{args.version}")
     
     pipeline_job = eeg_train_pipeline(
         registered_features=registered_features
     )
+    
     # Set pipeline level compute
     pipeline_job.settings.default_compute = args.compute_name
     # Set pipeline level datastore
@@ -172,6 +181,7 @@ def main():
     pipeline_job.settings.continue_on_step_failure = False
     pipeline_job.settings.force_rerun = True
     pipeline_job.settings.default_timeout = 3600
+    
     # Submit and monitor pipeline job
     pipeline_job = ml_client.jobs.create_or_update(
         pipeline_job, experiment_name=args.experiment_name
