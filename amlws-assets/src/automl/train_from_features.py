@@ -11,6 +11,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, reca
 from mlflow.models.signature import infer_signature
 from typing import Dict, Any, Tuple
 import json
+import joblib
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -232,20 +233,31 @@ def main():
         
         # Save results
         output_path = Path(args.model_output)
+        if output_path.exists():
+            logger.info(f"Output directory {output_path} already exists. Saving results will overwrite existing files.")
         output_path.mkdir(parents=True, exist_ok=True)
         save_training_results(model, df, metrics, fold_results, output_path)
         
-        # Save model
+        # Save model using direct MLflow logging instead of save_model
         wrapped_model = WrappedModel(model)
         signature = infer_signature(
             df.drop(['Participant', 'Remission'], axis=1),
             model.predict(df.drop(['Participant', 'Remission'], axis=1))
         )
-        mlflow.pyfunc.save_model(
-            path=args.model_output,
+        
+        # Log the model to the current MLflow run
+        mlflow.pyfunc.log_model(
+            artifact_path="model",
             python_model=wrapped_model,
             signature=signature
         )
+        
+        # Save the model artifacts separately if needed
+        model_path = output_path / "model_artifacts"
+        model_path.mkdir(parents=True, exist_ok=True)
+        
+        # Save the raw decision tree model
+        joblib.dump(model, model_path / "decision_tree_model.joblib")
         
         # Log final success metric
         mlflow.log_metric("training_success", 1)
