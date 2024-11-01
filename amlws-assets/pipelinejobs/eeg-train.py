@@ -68,7 +68,6 @@ def create_train_component(parent_dir, jobtype, environment_name):
         }
     )
 
-# Update the pipeline function definition
 @dsl.pipeline(
     description="EEG Train Pipeline with RAI Dashboard",
     display_name="EEG-Train-Pipeline-RAI"
@@ -123,7 +122,6 @@ def eeg_train_pipeline(registered_features, rai_constructor, rai_error_analysis,
         "rai_dashboard": rai_gather_job.outputs.dashboard
     }
 
-# Update the main function to pass individual components
 def main():
     args = parse_args()
     print(args)
@@ -134,14 +132,11 @@ def main():
         tenant_id=os.environ["AZURE_TENANT_ID"]
     )
     ml_client = MLClient.from_config(credential=credential)
-
     try:
         print(ml_client.compute.get(args.compute_name))
     except:
         print("No compute found")
-
     parent_dir = "amlws-assets/src"
-
     # Get RAI components
     registry_name = "azureml"
     ml_client_registry = MLClient(
@@ -151,7 +146,6 @@ def main():
         registry_name=registry_name,
     )
     rai_components = setup_rai_components(ml_client_registry)
-
     # Create training component
     global train_model_from_features
     train_model_from_features = create_train_component(
@@ -159,7 +153,6 @@ def main():
         args.jobtype, 
         args.environment_name
     )
-
     # Get the registered MLTable and create pipeline
     registered_features = Input(type="mltable", path=f"azureml:automl_features:{args.version}")
     
@@ -170,7 +163,6 @@ def main():
         rai_explanation=rai_components['explanation'],
         rai_gather=rai_components['gather']
     )
-
     # Set pipeline level compute
     pipeline_job.settings.default_compute = args.compute_name
     # Set pipeline level datastore
@@ -179,7 +171,6 @@ def main():
     pipeline_job.settings.continue_on_step_failure = False
     pipeline_job.settings.force_rerun = True
     pipeline_job.settings.default_timeout = 3600
-
     # Submit and monitor pipeline job
     pipeline_job = ml_client.jobs.create_or_update(
         pipeline_job, experiment_name=args.experiment_name
