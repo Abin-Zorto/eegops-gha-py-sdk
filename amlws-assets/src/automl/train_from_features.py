@@ -101,7 +101,6 @@ def create_automl_config(dataset: Dataset, groups: np.ndarray, run: Run) -> Auto
         primary_metric='AUC_weighted',
         training_data=dataset,
         label_column_name='Remission',
-        compute_target=run.get_environment(),
         enable_early_stopping=True,
         experiment_timeout_minutes=15,
         iteration_timeout_minutes=5,
