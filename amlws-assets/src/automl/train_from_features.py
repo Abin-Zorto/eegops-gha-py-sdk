@@ -6,8 +6,7 @@ import logging
 import time
 import tempfile
 from azureml.train.automl import AutoMLConfig
-from azureml.core import Run
-from azureml.data import TabularDataset
+from azureml.core import Run, Dataset
 from sklearn.model_selection import LeaveOneGroupOut
 from mlflow.models.signature import infer_signature
 from typing import Dict, Any, Tuple
@@ -34,7 +33,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def load_and_validate_data(features_path: str, run: Run) -> Tuple[TabularDataset, pd.DataFrame, Dict[str, Any], np.ndarray]:
+def load_and_validate_data(features_path: str, run: Run) -> Tuple[Dataset, pd.DataFrame, Dict[str, Any], np.ndarray]:
     """Load and validate feature data from mounted path."""
     logger.info(f"Loading features from: {features_path}")
     
@@ -43,7 +42,7 @@ def load_and_validate_data(features_path: str, run: Run) -> Tuple[TabularDataset
     logger.info(f"Reading parquet file from: {features_file}")
     df = pd.read_parquet(features_file)
     
-    # Convert DataFrame to TabularDataset
+    # Convert DataFrame to Dataset
     workspace = run.experiment.workspace
     
     # Create temporary directory
@@ -53,8 +52,11 @@ def load_and_validate_data(features_path: str, run: Run) -> Tuple[TabularDataset
         logger.info(f"Creating temporary CSV file at: {temp_csv}")
         df.to_csv(temp_csv, index=False)
         
-        # Create TabularDataset from the temp CSV file
-        dataset = TabularDataset.from_delimited_files(path=temp_csv)
+        # Create Dataset from the temp CSV file
+        dataset = Dataset.Tabular.from_delimited_files(
+            path=[(None, temp_csv)],
+            validate=True
+        )
         
         # File will be automatically cleaned up when the context manager exits
     
@@ -80,7 +82,7 @@ def load_and_validate_data(features_path: str, run: Run) -> Tuple[TabularDataset
     
     return dataset, df, stats, groups
 
-def create_automl_config(dataset: TabularDataset, groups: np.ndarray, run: Run) -> AutoMLConfig:
+def create_automl_config(dataset: Dataset, groups: np.ndarray, run: Run) -> AutoMLConfig:
     """Create AutoML configuration with comprehensive settings."""
     samples_per_participant = len(dataset.to_pandas_dataframe()) / len(np.unique(groups))
     logger.info(f"Average samples per participant: {samples_per_participant:.2f}")
