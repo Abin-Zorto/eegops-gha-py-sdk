@@ -4,6 +4,7 @@ import pandas as pd
 import mlflow
 import logging
 import time
+import tempfile
 from azureml.train.automl import AutoMLConfig
 from azureml.core import Run, Dataset
 from sklearn.model_selection import LeaveOneGroupOut
@@ -11,6 +12,7 @@ from mlflow.models.signature import infer_signature
 from typing import Dict, Any, Tuple
 import json
 import numpy as np
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -31,19 +33,41 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def load_and_validate_data(features_path: Path, run: Run) -> Tuple[Dataset, Dict[str, Any], np.ndarray]:
-    """Load and validate feature data, converting to TabularDataset."""
+def load_and_validate_data(features_path: str, run: Run) -> Tuple[Dataset, pd.DataFrame, Dict[str, Any], np.ndarray]:
+    """Load and validate feature data from mounted path."""
     logger.info(f"Loading features from: {features_path}")
-    df = pd.read_parquet(features_path)
     
-    # Save DataFrame temporarily as CSV to create TabularDataset
-    temp_path = Path(features_path).parent / "temp_features.csv"
-    df.to_csv(temp_path, index=False)
+    # Load parquet file directly
+    features_file = Path(features_path) / "features.parquet"
+    logger.info(f"Reading parquet file from: {features_file}")
+    df = pd.read_parquet(features_file)
     
-    # Create TabularDataset
+    # Convert DataFrame to Dataset
     workspace = run.experiment.workspace
     datastore = workspace.get_default_datastore()
-    dataset = Dataset.Tabular.from_delimited_files(path=[(datastore, str(temp_path))])
+    
+    # Create temporary directory
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Save DataFrame temporarily as CSV in the temp directory
+        temp_csv = os.path.join(temp_dir, "temp_features.csv")
+        logger.info(f"Creating temporary CSV file at: {temp_csv}")
+        df.to_csv(temp_csv, index=False)
+        
+        # Upload CSV to datastore
+        logger.info("Uploading CSV to datastore...")
+        temp_data_path = f"temp_data/{run.id}"
+        datastore.upload_files(
+            [temp_csv], 
+            target_path=temp_data_path,
+            overwrite=True
+        )
+        
+        # Create Dataset using the uploaded file
+        dataset = Dataset.Tabular.from_delimited_files(
+            path=[(datastore, f"{temp_data_path}/temp_features.csv")]
+        )
+        
+        # File will be automatically cleaned up when the context manager exits
     
     # Compute data statistics
     stats = {
@@ -65,20 +89,17 @@ def load_and_validate_data(features_path: Path, run: Run) -> Tuple[Dataset, Dict
     
     groups = df['Participant'].values
     
-    # Clean up temporary file
-    temp_path.unlink()
-    
-    return dataset, stats, groups
+    return dataset, df, stats, groups
 
-def create_automl_config(dataset: Dataset, groups: np.ndarray, run: Run, df: pd.DataFrame) -> AutoMLConfig:
+def create_automl_config(dataset: Dataset, groups: np.ndarray, run: Run) -> AutoMLConfig:
     """Create AutoML configuration with comprehensive settings."""
-    samples_per_participant = len(df) / len(np.unique(groups))
+    samples_per_participant = len(dataset.to_pandas_dataframe()) / len(np.unique(groups))
     logger.info(f"Average samples per participant: {samples_per_participant:.2f}")
     
     return AutoMLConfig(
         task='classification',
         primary_metric='AUC_weighted',
-        training_data=dataset,  # Now using TabularDataset
+        training_data=dataset,
         label_column_name='Remission',
         compute_target=run.get_environment(),
         enable_early_stopping=True,
@@ -159,13 +180,10 @@ def main():
     run = Run.get_context()
     
     try:
-        features_path = Path(args.registered_features) / "features.parquet"
-        # Keep DataFrame for statistics and other operations
-        df = pd.read_parquet(features_path)
-        # Convert to TabularDataset for AutoML
-        dataset, data_stats, groups = load_and_validate_data(features_path, run)
+        # Load dataset and convert to DataFrame for additional processing
+        dataset, df, data_stats, groups = load_and_validate_data(args.registered_features, run)
         
-        automl_config = create_automl_config(dataset, groups, run, df)
+        automl_config = create_automl_config(dataset, groups, run)
         logger.info("Starting AutoML training...")
         logger.info(f"Number of CV folds (participants): {len(np.unique(groups))}")
         
