@@ -1,4 +1,4 @@
-import argparse
+simport argparse
 from pathlib import Path
 import pandas as pd
 import mlflow
@@ -34,54 +34,43 @@ def load_and_validate_data(features_path: str) -> Tuple[pd.DataFrame, Dict[str, 
     """Load and validate feature data."""
     logger.info(f"Loading features from: {features_path}")
     
-    # Load parquet file directly
     features_file = Path(features_path) / "features.parquet"
     logger.info(f"Reading parquet file from: {features_file}")
     df = pd.read_parquet(features_file)
     
-    # Compute data statistics
-    stats = {
-        'total_samples': len(df),
-        'total_features': len(df.columns) - 2,  # excluding Participant and Remission
-        'unique_participants': len(df['Participant'].unique()),
-        'class_balance': df['Remission'].value_counts(normalize=True).to_dict(),
-        'missing_values': df.isna().sum().to_dict(),
-        'memory_usage': df.memory_usage(deep=True).sum() / 1024**2  # MB
-    }
-    
-    # Log data statistics
-    for name, value in stats.items():
-        if isinstance(value, dict):
-            for k, v in value.items():
-                mlflow.log_metric(f"data_{name}_{k}", v)
-        else:
-            mlflow.log_metric(f"data_{name}", value)
+    # Log data distribution
+    remission_counts = df.groupby('Participant')['Remission'].first().value_counts()
+    logger.info("\nParticipant Remission Distribution:")
+    logger.info(f"Number of Remission participants: {remission_counts.get(1, 0)}")
+    logger.info(f"Number of Non-remission participants: {remission_counts.get(0, 0)}")
     
     groups = df['Participant'].values
+    unique_participants = np.unique(groups)
     
-    return df, stats, groups
+    logger.info("\nParticipant-wise summary:")
+    for participant in unique_participants:
+        participant_data = df[df['Participant'] == participant]
+        logger.info(f"\nParticipant {participant}:")
+        logger.info(f"Samples: {len(participant_data)}")
+        logger.info(f"Remission status: {'Yes' if participant_data['Remission'].iloc[0] == 1 else 'No'}")
+    
+    return df, unique_participants, groups
 
-def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTreeClassifier, Dict[str, float]]:
-    """Train and evaluate model using LOGO CV."""
+def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTreeClassifier, Dict, list]:
+    """Train model with LOGO CV and return final model, metrics, and fold results."""
     X = df.drop(['Participant', 'Remission'], axis=1)
     y = df['Remission']
     
-    cv = LeaveOneGroupOut()
-    cv_metrics = {
-        'auc': [],
-        'accuracy': [],
-        'precision': [],
-        'recall': [],
-        'f1': []
-    }
+    # Initialize LOGO CV
+    logo = LeaveOneGroupOut()
+    fold_results = []
+    cv_predictions = pd.DataFrame()
     
-    # Train final model on all data
-    final_model = DecisionTreeClassifier(random_state=42)
-    final_model.fit(X, y)
+    logger.info("\nStarting Leave-One-Participant-Out Cross Validation:")
     
-    # Perform CV for evaluation
-    logger.info("Starting Leave-One-Group-Out Cross Validation...")
-    for fold, (train_idx, val_idx) in enumerate(cv.split(X, y, groups)):
+    # Perform CV
+    for fold, (train_idx, val_idx) in enumerate(logo.split(X, y, groups)):
+        participant_id = groups[val_idx[0]]
         X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
         y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
         
@@ -89,34 +78,64 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
         model = DecisionTreeClassifier(random_state=42)
         model.fit(X_train, y_train)
         
-        # Get predictions
-        y_pred = model.predict(X_val)
-        y_pred_proba = model.predict_proba(X_val)[:, 1]
+        # Make predictions
+        val_pred = model.predict(X_val)
+        val_pred_proba = model.predict_proba(X_val)[:, 1]
         
-        # Calculate metrics
-        cv_metrics['auc'].append(roc_auc_score(y_val, y_pred_proba))
-        cv_metrics['accuracy'].append(accuracy_score(y_val, y_pred))
-        cv_metrics['precision'].append(precision_score(y_val, y_pred))
-        cv_metrics['recall'].append(recall_score(y_val, y_pred))
-        cv_metrics['f1'].append(f1_score(y_val, y_pred))
+        # Store results
+        fold_metrics = {
+            'participant': participant_id,
+            'actual_class': y_val.iloc[0],
+            'predicted_class': val_pred[0],
+            'prediction_probability': val_pred_proba[0],
+            'samples': len(y_val),
+            'accuracy': accuracy_score(y_val, val_pred),
+            'precision': precision_score(y_val, val_pred, zero_division=0),
+            'recall': recall_score(y_val, val_pred, zero_division=0),
+            'f1': f1_score(y_val, val_pred, zero_division=0)
+        }
+        fold_results.append(fold_metrics)
         
-        logger.info(f"Fold {fold + 1}/{len(np.unique(groups))}: AUC = {cv_metrics['auc'][-1]:.3f}")
+        logger.info(f"\nParticipant {participant_id} (Fold {fold + 1}/{len(np.unique(groups))}):")
+        logger.info(f"True class: {fold_metrics['actual_class']}")
+        logger.info(f"Predicted class: {fold_metrics['predicted_class']}")
+        logger.info(f"Prediction probability: {fold_metrics['prediction_probability']:.3f}")
+        logger.info(f"Accuracy: {fold_metrics['accuracy']:.3f}")
     
-    # Calculate mean and std of metrics
-    metrics_summary = {}
-    for metric in cv_metrics:
-        values = cv_metrics[metric]
-        metrics_summary[f'{metric}_mean'] = np.mean(values)
-        metrics_summary[f'{metric}_std'] = np.std(values)
-        
-        # Log metrics to MLflow
-        mlflow.log_metric(f'cv_{metric}_mean', metrics_summary[f'{metric}_mean'])
-        mlflow.log_metric(f'cv_{metric}_std', metrics_summary[f'{metric}_std'])
+    # Train final model on all data
+    final_model = DecisionTreeClassifier(random_state=42)
+    final_model.fit(X, y)
     
-    return final_model, metrics_summary
+    # Calculate overall metrics
+    results_df = pd.DataFrame(fold_results)
+    metrics = {
+        'accuracy_mean': results_df['accuracy'].mean(),
+        'accuracy_std': results_df['accuracy'].std(),
+        'precision_mean': results_df['precision'].mean(),
+        'precision_std': results_df['precision'].std(),
+        'recall_mean': results_df['recall'].mean(),
+        'recall_std': results_df['recall'].std(),
+        'f1_mean': results_df['f1'].mean(),
+        'f1_std': results_df['f1'].std()
+    }
+    
+    logger.info("\nOverall Cross-Validation Results:")
+    logger.info(f"Accuracy: {metrics['accuracy_mean']:.3f} ± {metrics['accuracy_std']:.3f}")
+    logger.info(f"Precision: {metrics['precision_mean']:.3f} ± {metrics['precision_std']:.3f}")
+    logger.info(f"Recall: {metrics['recall_mean']:.3f} ± {metrics['recall_std']:.3f}")
+    logger.info(f"F1: {metrics['f1_mean']:.3f} ± {metrics['f1_std']:.3f}")
+    
+    return final_model, metrics, fold_results
 
-def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metrics: Dict[str, float], output_path: Path):
+def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metrics: Dict, 
+                         fold_results: list, output_path: Path):
     """Save training results and artifacts."""
+    # Save fold-wise results
+    fold_results_df = pd.DataFrame(fold_results)
+    fold_results_df.to_csv(output_path / 'fold_results.csv', index=False)
+    mlflow.log_artifact(output_path / 'fold_results.csv')
+    
+    # Save feature importance
     feature_cols = df.drop(['Participant', 'Remission'], axis=1).columns
     feature_importance = pd.DataFrame({
         'Feature': feature_cols,
@@ -129,12 +148,17 @@ def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metri
     for idx, row in feature_importance.head(10).iterrows():
         mlflow.log_metric(f"top_feature_{idx+1}_importance", row['Importance'])
     
+    # Log metrics
+    for metric_name, value in metrics.items():
+        mlflow.log_metric(f"cv_{metric_name}", value)
+    
     model_details = {
         'model_type': 'DecisionTreeClassifier',
         'cv_folds': len(np.unique(df['Participant'])),
-        'features_used': list(df.drop(['Participant', 'Remission'], axis=1).columns),
+        'features_used': list(feature_cols),
         'model_parameters': model.get_params(),
         'cross_validation_metrics': metrics,
+        'fold_results': fold_results,
         'training_time': time.time() - start_time
     }
     
@@ -150,14 +174,14 @@ def main():
     
     try:
         # Load data
-        df, data_stats, groups = load_and_validate_data(args.registered_features)
+        df, unique_participants, groups = load_and_validate_data(args.registered_features)
         
         # Train and evaluate model
-        logger.info("Starting training...")
-        logger.info(f"Number of participants (CV folds): {len(np.unique(groups))}")
+        logger.info("\nStarting training...")
+        logger.info(f"Number of participants: {len(unique_participants)}")
         
         training_start = time.time()
-        model, metrics = train_and_evaluate(df, groups)
+        model, metrics, fold_results = train_and_evaluate(df, groups)
         training_time = time.time() - training_start
         
         mlflow.log_metric("total_training_time", training_time)
@@ -166,7 +190,7 @@ def main():
         # Save results
         output_path = Path(args.model_output)
         output_path.mkdir(parents=True, exist_ok=True)
-        save_training_results(model, df, metrics, output_path)
+        save_training_results(model, df, metrics, fold_results, output_path)
         
         # Save model
         wrapped_model = WrappedModel(model)
@@ -179,11 +203,6 @@ def main():
             python_model=wrapped_model,
             signature=signature
         )
-        
-        # Log summary metrics
-        logger.info("\nCross-validation metrics summary:")
-        logger.info(f"Mean AUC: {metrics['auc_mean']:.3f} ± {metrics['auc_std']:.3f}")
-        logger.info(f"Mean Accuracy: {metrics['accuracy_mean']:.3f} ± {metrics['accuracy_std']:.3f}")
         
         # Log final success metric
         mlflow.log_metric("training_success", 1)
