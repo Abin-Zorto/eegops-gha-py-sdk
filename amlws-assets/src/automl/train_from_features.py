@@ -30,6 +30,16 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def convert_to_serializable(obj):
+    """Convert numpy types to Python native types for JSON serialization."""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
+
 def load_and_validate_data(features_path: str) -> Tuple[pd.DataFrame, Dict[str, Any], np.ndarray]:
     """Load and validate feature data."""
     logger.info(f"Loading features from: {features_path}")
@@ -61,10 +71,18 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
     X = df.drop(['Participant', 'Remission'], axis=1)
     y = df['Remission']
     
+    # Calculate class weights based on class distribution
+    class_counts = df.groupby('Participant')['Remission'].first().value_counts()
+    total = class_counts.sum()
+    class_weights = {
+        0: total / (2 * class_counts[0]),
+        1: total / (2 * class_counts[1])
+    }
+    logger.info(f"\nClass weights: {class_weights}")
+    
     # Initialize LOGO CV
     logo = LeaveOneGroupOut()
     fold_results = []
-    cv_predictions = pd.DataFrame()
     
     logger.info("\nStarting Leave-One-Participant-Out Cross Validation:")
     
@@ -74,8 +92,13 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
         X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
         y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
         
-        # Train model
-        model = DecisionTreeClassifier(random_state=42)
+        # Train model with class weights
+        model = DecisionTreeClassifier(
+            class_weight=class_weights,
+            max_depth=5,  # Prevent overfitting
+            min_samples_leaf=10,  # Ensure robust splits
+            random_state=42
+        )
         model.fit(X_train, y_train)
         
         # Make predictions
@@ -84,15 +107,15 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
         
         # Store results
         fold_metrics = {
-            'participant': participant_id,
-            'actual_class': y_val.iloc[0],
-            'predicted_class': val_pred[0],
-            'prediction_probability': val_pred_proba[0],
-            'samples': len(y_val),
-            'accuracy': accuracy_score(y_val, val_pred),
-            'precision': precision_score(y_val, val_pred, zero_division=0),
-            'recall': recall_score(y_val, val_pred, zero_division=0),
-            'f1': f1_score(y_val, val_pred, zero_division=0)
+            'participant': int(participant_id),
+            'actual_class': int(y_val.iloc[0]),
+            'predicted_class': int(val_pred[0]),
+            'prediction_probability': float(val_pred_proba[0]),
+            'samples': int(len(y_val)),
+            'accuracy': float(accuracy_score(y_val, val_pred)),
+            'precision': float(precision_score(y_val, val_pred, zero_division=0)),
+            'recall': float(recall_score(y_val, val_pred, zero_division=0)),
+            'f1': float(f1_score(y_val, val_pred, zero_division=0))
         }
         fold_results.append(fold_metrics)
         
@@ -101,23 +124,43 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
         logger.info(f"Predicted class: {fold_metrics['predicted_class']}")
         logger.info(f"Prediction probability: {fold_metrics['prediction_probability']:.3f}")
         logger.info(f"Accuracy: {fold_metrics['accuracy']:.3f}")
+        if fold_metrics['actual_class'] == 1:
+            logger.info("(Remission participant)")
     
     # Train final model on all data
-    final_model = DecisionTreeClassifier(random_state=42)
+    final_model = DecisionTreeClassifier(
+        class_weight=class_weights,
+        max_depth=5,
+        min_samples_leaf=10,
+        random_state=42
+    )
     final_model.fit(X, y)
     
     # Calculate overall metrics
     results_df = pd.DataFrame(fold_results)
     metrics = {
-        'accuracy_mean': results_df['accuracy'].mean(),
-        'accuracy_std': results_df['accuracy'].std(),
-        'precision_mean': results_df['precision'].mean(),
-        'precision_std': results_df['precision'].std(),
-        'recall_mean': results_df['recall'].mean(),
-        'recall_std': results_df['recall'].std(),
-        'f1_mean': results_df['f1'].mean(),
-        'f1_std': results_df['f1'].std()
+        'accuracy_mean': float(results_df['accuracy'].mean()),
+        'accuracy_std': float(results_df['accuracy'].std()),
+        'precision_mean': float(results_df['precision'].mean()),
+        'precision_std': float(results_df['precision'].std()),
+        'recall_mean': float(results_df['recall'].mean()),
+        'recall_std': float(results_df['recall'].std()),
+        'f1_mean': float(results_df['f1'].mean()),
+        'f1_std': float(results_df['f1'].std())
     }
+    
+    # Calculate metrics for each class
+    remission_results = results_df[results_df['actual_class'] == 1]
+    non_remission_results = results_df[results_df['actual_class'] == 0]
+    
+    logger.info("\nClass-wise Prediction Results:")
+    logger.info(f"Remission participants (n={len(remission_results)}):")
+    logger.info(f"Correct predictions: {sum(remission_results['actual_class'] == remission_results['predicted_class'])}")
+    logger.info(f"Accuracy: {remission_results['accuracy'].mean():.3f}")
+    
+    logger.info(f"\nNon-remission participants (n={len(non_remission_results)}):")
+    logger.info(f"Correct predictions: {sum(non_remission_results['actual_class'] == non_remission_results['predicted_class'])}")
+    logger.info(f"Accuracy: {non_remission_results['accuracy'].mean():.3f}")
     
     logger.info("\nOverall Cross-Validation Results:")
     logger.info(f"Accuracy: {metrics['accuracy_mean']:.3f} ± {metrics['accuracy_std']:.3f}")
@@ -139,7 +182,7 @@ def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metri
     feature_cols = df.drop(['Participant', 'Remission'], axis=1).columns
     feature_importance = pd.DataFrame({
         'Feature': feature_cols,
-        'Importance': model.feature_importances_
+        'Importance': [float(imp) for imp in model.feature_importances_]  # Convert to native Python float
     }).sort_values('Importance', ascending=False)
     
     feature_importance.to_csv(output_path / 'feature_importance.csv', index=False)
@@ -156,10 +199,10 @@ def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metri
         'model_type': 'DecisionTreeClassifier',
         'cv_folds': len(np.unique(df['Participant'])),
         'features_used': list(feature_cols),
-        'model_parameters': model.get_params(),
+        'model_parameters': {k: convert_to_serializable(v) for k, v in model.get_params().items()},
         'cross_validation_metrics': metrics,
         'fold_results': fold_results,
-        'training_time': time.time() - start_time
+        'training_time': float(time.time() - start_time)
     }
     
     with open(output_path / 'model_details.json', 'w') as f:
