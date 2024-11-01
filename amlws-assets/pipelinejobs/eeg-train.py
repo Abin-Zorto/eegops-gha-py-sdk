@@ -68,18 +68,19 @@ def create_train_component(parent_dir, jobtype, environment_name):
         }
     )
 
+# Update the pipeline function definition
 @dsl.pipeline(
     description="EEG Train Pipeline with RAI Dashboard",
     display_name="EEG-Train-Pipeline-RAI"
 )
-def eeg_train_pipeline(registered_features, rai_components, target_column_name="Remission"):
+def eeg_train_pipeline(registered_features, rai_constructor, rai_error_analysis, rai_explanation, rai_gather, target_column_name="Remission"):
     # Training step
     train_job = train_model_from_features(
         registered_features=registered_features
     )
     
     # RAI dashboard construction
-    create_rai_job = rai_components['constructor'](
+    create_rai_job = rai_constructor(
         title="EEG Analysis RAI Dashboard",
         task_type="classification",
         model_info="mlflow_model",
@@ -91,26 +92,24 @@ def eeg_train_pipeline(registered_features, rai_components, target_column_name="
     create_rai_job.set_limits(timeout=300)
     
     # Add error analysis
-    error_job = rai_components['error_analysis'](
+    error_job = rai_error_analysis(
         rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
     )
     error_job.set_limits(timeout=300)
     
     # Add explanations
-    explanation_job = rai_components['explanation'](
+    explanation_job = rai_explanation(
         rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
-        comment="Feature importance and LOGO cross-validated model interpretability",
     )
     explanation_job.set_limits(timeout=300)
     
     # Gather insights
-    rai_gather_job = rai_components['gather'](
+    rai_gather_job = rai_gather(
         constructor=create_rai_job.outputs.rai_insights_dashboard,
         insight_3=error_job.outputs.error_analysis,
         insight_4=explanation_job.outputs.explanation,
     )
     rai_gather_job.set_limits(timeout=300)
-
     # Set upload mode for dashboard
     rand_path = str(uuid.uuid4())
     rai_gather_job.outputs.dashboard = Output(
@@ -124,6 +123,7 @@ def eeg_train_pipeline(registered_features, rai_components, target_column_name="
         "rai_dashboard": rai_gather_job.outputs.dashboard
     }
 
+# Update the main function to pass individual components
 def main():
     args = parse_args()
     print(args)
@@ -162,7 +162,14 @@ def main():
 
     # Get the registered MLTable and create pipeline
     registered_features = Input(type="mltable", path=f"azureml:automl_features:{args.version}")
-    pipeline_job = eeg_train_pipeline(registered_features=registered_features, rai_components=rai_components)
+    
+    pipeline_job = eeg_train_pipeline(
+        registered_features=registered_features,
+        rai_constructor=rai_components['constructor'],
+        rai_error_analysis=rai_components['error_analysis'],
+        rai_explanation=rai_components['explanation'],
+        rai_gather=rai_components['gather']
+    )
 
     # Set pipeline level compute
     pipeline_job.settings.default_compute = args.compute_name
