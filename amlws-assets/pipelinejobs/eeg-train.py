@@ -72,7 +72,7 @@ def create_train_component(parent_dir, jobtype, environment_name):
     description="EEG Train Pipeline with RAI Dashboard",
     display_name="EEG-Train-Pipeline-RAI"
 )
-def eeg_train_pipeline(registered_features, rai_constructor, rai_error_analysis, rai_explanation, rai_gather, target_column_name="Remission"):
+def eeg_train_pipeline(registered_features, target_column_name="Remission"):
     # Training step
     train_job = train_model_from_features(
         registered_features=registered_features
@@ -148,20 +148,21 @@ def main():
     rai_components = setup_rai_components(ml_client_registry)
     # Create training component
     global train_model_from_features
+    global rai_constructor, rai_error_analysis, rai_explanation, rai_gather
     train_model_from_features = create_train_component(
         parent_dir, 
         args.jobtype, 
         args.environment_name
     )
+    rai_constructor = rai_components['constructor']
+    rai_error_analysis = rai_components['error_analysis']
+    rai_explanation = rai_components['explanation']
+    rai_gather = rai_components['gather']
     # Get the registered MLTable and create pipeline
     registered_features = Input(type="mltable", path=f"azureml:automl_features:{args.version}")
     
     pipeline_job = eeg_train_pipeline(
-        registered_features=registered_features,
-        rai_constructor=rai_components['constructor'],
-        rai_error_analysis=rai_components['error_analysis'],
-        rai_explanation=rai_components['explanation'],
-        rai_gather=rai_components['gather']
+        registered_features=registered_features
     )
     # Set pipeline level compute
     pipeline_job.settings.default_compute = args.compute_name
