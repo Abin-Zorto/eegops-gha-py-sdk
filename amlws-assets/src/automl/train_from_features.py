@@ -4,6 +4,7 @@ import pandas as pd
 import mlflow
 import logging
 import time
+import tempfile
 from azureml.train.automl import AutoMLConfig
 from azureml.core import Run
 from azureml.data import TabularDataset
@@ -12,6 +13,7 @@ from mlflow.models.signature import infer_signature
 from typing import Dict, Any, Tuple
 import json
 import numpy as np
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -44,15 +46,17 @@ def load_and_validate_data(features_path: str, run: Run) -> Tuple[TabularDataset
     # Convert DataFrame to TabularDataset
     workspace = run.experiment.workspace
     
-    # Save DataFrame temporarily as CSV (TabularDataset works better with CSV)
-    temp_csv = Path(features_path) / "temp_features.csv"
-    df.to_csv(temp_csv, index=False)
-    
-    # Create TabularDataset from the temp CSV file
-    dataset = TabularDataset.from_delimited_files(path=str(temp_csv))
-    
-    # Clean up temp file
-    temp_csv.unlink()
+    # Create temporary directory
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Save DataFrame temporarily as CSV in the temp directory
+        temp_csv = os.path.join(temp_dir, "temp_features.csv")
+        logger.info(f"Creating temporary CSV file at: {temp_csv}")
+        df.to_csv(temp_csv, index=False)
+        
+        # Create TabularDataset from the temp CSV file
+        dataset = TabularDataset.from_delimited_files(path=temp_csv)
+        
+        # File will be automatically cleaned up when the context manager exits
     
     # Compute data statistics
     stats = {
