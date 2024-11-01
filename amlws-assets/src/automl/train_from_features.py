@@ -91,10 +91,22 @@ def load_and_validate_data(features_path: str, run: Run) -> Tuple[Dataset, pd.Da
     
     return dataset, df, stats, groups
 
+def get_cv_splits(X: pd.DataFrame, groups: np.ndarray) -> list:
+    """Generate cross-validation splits using LeaveOneGroupOut."""
+    cv = LeaveOneGroupOut()
+    splits = []
+    for train_idx, val_idx in cv.split(X, groups=groups):
+        splits.append((train_idx.tolist(), val_idx.tolist()))
+    return splits
+
 def create_automl_config(dataset: Dataset, groups: np.ndarray, run: Run) -> AutoMLConfig:
     """Create AutoML configuration with comprehensive settings."""
     samples_per_participant = len(dataset.to_pandas_dataframe()) / len(np.unique(groups))
     logger.info(f"Average samples per participant: {samples_per_participant:.2f}")
+    
+    # Generate CV splits
+    X = dataset.to_pandas_dataframe()
+    cv_splits = get_cv_splits(X, groups)
     
     return AutoMLConfig(
         task='classification',
@@ -107,9 +119,8 @@ def create_automl_config(dataset: Dataset, groups: np.ndarray, run: Run) -> Auto
         max_concurrent_iterations=4,
         max_cores_per_iteration=-1,
         verbosity=logging.INFO,
-        cv=LeaveOneGroupOut(),
-        cv_groups=groups,
-        n_cross_validations=None,
+        n_cross_validations=None,  # Disable default CV
+        user_cv_splits=cv_splits,  # Use custom CV splits
         blocked_models=['TensorFlowDNN', 'TensorFlowLinearClassifier'],
         allowed_models=[
             'LogisticRegression',
