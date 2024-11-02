@@ -192,7 +192,16 @@ def save_and_register_model(model: DecisionTreeClassifier, df: pd.DataFrame, mod
     # Create wrapped model
     wrapped_model = WrappedModel(model)
     
-    # Register the model in the workspace
+    # First save the model locally to the output path
+    local_path = output_path / "model"
+    mlflow.pyfunc.save_model(
+        path=local_path,
+        python_model=wrapped_model,
+        signature=signature,
+        input_example=input_example
+    )
+    
+    # Then register the model in the workspace
     registered_model = mlflow.pyfunc.log_model(
         artifact_path="model",
         python_model=wrapped_model,
@@ -202,6 +211,7 @@ def save_and_register_model(model: DecisionTreeClassifier, df: pd.DataFrame, mod
     )
     
     logger.info(f"Model registered with name: {model_name}")
+    logger.info(f"Model saved locally to: {local_path}")
     
     # Save model info
     model_info = {"id": f"{model_name}:{registered_model.version if hasattr(registered_model, 'version') else 'unknown'}"} 
