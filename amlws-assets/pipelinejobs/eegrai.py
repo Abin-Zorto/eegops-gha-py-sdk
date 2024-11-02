@@ -60,8 +60,7 @@ def setup_rai_components(ml_client_registry):
 )
 def eeg_rai_pipeline(
     registered_features, 
-    model_name,
-    target_column_name="Remission"
+    model_name
 ):
     """Pipeline to generate RAI dashboard using registered model"""
     logger.info("Initializing EEG RAI pipeline")
@@ -74,7 +73,7 @@ def eeg_rai_pipeline(
         model_info=Input(type="uri_folder", path=f"azureml:{model_name}:1"),
         train_dataset=registered_features,
         test_dataset=registered_features,
-        target_column_name=target_column_name,
+        target_column_name="Remission",
         categorical_column_names="[]",
         classes='["Non-remission", "Remission"]'
     )
@@ -98,11 +97,9 @@ def eeg_rai_pipeline(
     
     # Gather insights
     rai_gather_job = rai_gather(
-        constructor_node=create_rai_job.outputs.rai_insights_dashboard,
-        analysis_nodes=[
-            error_job.outputs.error_analysis,
-            explanation_job.outputs.explanation
-        ]
+        constructor=create_rai_job.outputs.rai_insights_dashboard,
+        insight_1=error_job.outputs.error_analysis,
+        insight_2=explanation_job.outputs.explanation
     )
     rai_gather_job.set_limits(timeout=300)
     
