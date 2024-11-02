@@ -90,12 +90,15 @@ def create_rai_pipeline(
     def rai_decision_pipeline(
         target_column_name, train_data, test_data
     ):
-        args = parse_args()
         expected_model_id = f"{model_name}:{model_version}"
         azureml_model_id = f"azureml:{expected_model_id}"
         
         logger.info(f"Using model ID: {expected_model_id}")
         logger.info(f"Azure ML Model URI: {azureml_model_id}")
+
+        feature_metadata = {
+            "dropped_features": ["Participant"]
+        }
         
         create_rai_job = rai_components['constructor'](
             title="RAI dashboard EEG",
@@ -106,7 +109,7 @@ def create_rai_pipeline(
             test_dataset=test_data,
             target_column_name=target_column_name,
             categorical_column_names='["Participant"]',
-            dropped_features='["Participant"]',
+            feature_metadata=feature_metadata,
             classes='["Non-remission", "Remission"]'
         )
         create_rai_job.set_limits(timeout=300)
