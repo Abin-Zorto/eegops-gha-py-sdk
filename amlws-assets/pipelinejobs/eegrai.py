@@ -72,7 +72,7 @@ def eeg_rai_pipeline(
         task_type="classification",
         model_info=Input(
             type="custom_model",
-            path=f"azureml:{args.model_name}@latest"
+            path=f"{args.model_name}@latest"
         ),
         train_dataset=registered_features,
         test_dataset=registered_features,
