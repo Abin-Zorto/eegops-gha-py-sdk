@@ -9,25 +9,40 @@ import uuid
 import time
 import logging
 from typing import Dict
-from azure.ai.ml import Dataset
-
+import pandas as pd
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def load_and_modify_mltable(ml_client, data_name, version, drop_columns):
     """Load MLTable, drop specified columns, and save as new MLTable."""
     
-    # Load the dataset as a DataFrame
-    dataset = Dataset.get_by_name(ml_client.workspace, name=data_name, version=version)
-    df = dataset.to_pandas_dataframe()
+    # Get the dataset asset
+    dataset = ml_client.data.get(name=data_name, version=version)
+    
+    # Read the data into a pandas DataFrame
+    df = pd.read_parquet(dataset.path)
     
     # Drop specified columns
     df.drop(columns=drop_columns, inplace=True)
     logger.info(f"Dropped columns: {drop_columns}")
     
-    # Register the modified DataFrame as a new MLTable
+    # Create a temporary local path for the modified data
+    import tempfile
+    temp_dir = tempfile.mkdtemp()
+    temp_path = os.path.join(temp_dir, "modified_data.parquet")
+    df.to_parquet(temp_path)
+    
+    # Register the modified data as a new asset
     modified_data_name = f"{data_name}_modified"
-    modified_dataset = Dataset.Tabular.register_pandas_dataframe(df, ml_client.workspace, modified_data_name)
+    modified_data = Data(
+        path=temp_path,
+        type="mltable",
+        name=modified_data_name,
+        version=version,
+        description=f"Modified version of {data_name} with columns {drop_columns} removed"
+    )
+    
+    ml_client.data.create_or_update(modified_data)
     logger.info(f"Registered modified dataset: {modified_data_name}")
     
     # Return new MLTable as Input type for pipeline
