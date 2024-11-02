@@ -3,7 +3,6 @@ import pandas as pd
 from pathlib import Path
 import mlflow
 from sklearn.model_selection import train_test_split
-from azure.ai.ml.entities import MLTable
 
 def parse_args():
     parser = argparse.ArgumentParser("Split data for RAI analysis")
