@@ -16,9 +16,20 @@ def parse_args():
     return parser.parse_args()
 
 def read_mltable(mltable_path):
-    """Read data from an MLTable directory."""
-    # Look for a CSV file within the directory
+    """Read data from an MLTable directory, verifying file structure."""
+    # Check and log the directory contents
+    print(f"Checking directory structure for MLTable at {mltable_path}")
+    print("Contents of input MLTable directory:")
+    for root, dirs, files in os.walk(mltable_path):
+        print(root, "contains directories:", dirs, "and files:", files)
+
+    # Look for CSV files directly in the directory
     csv_files = list(Path(mltable_path).glob("*.csv"))
+    
+    # If no CSV found, check subdirectories
+    if not csv_files:
+        print("No CSV found in root of MLTable directory, checking subdirectories...")
+        csv_files = list(Path(mltable_path).glob("**/*.csv"))
     
     if not csv_files:
         raise FileNotFoundError(f"No CSV file found in the MLTable directory: {mltable_path}")
