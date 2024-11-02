@@ -39,16 +39,6 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def convert_to_serializable(obj):
-    """Convert numpy types to Python native types for JSON serialization."""
-    if isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, np.floating):
-        return float(obj)
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    return obj
-
 def load_and_validate_data(features_path: str) -> Tuple[pd.DataFrame, Dict[str, Any], np.ndarray]:
     """Load and validate feature data."""
     logger.info(f"Loading features from: {features_path}")
@@ -104,8 +94,8 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
         # Train model with class weights
         model = DecisionTreeClassifier(
             class_weight=class_weights,
-            max_depth=5,  # Prevent overfitting
-            min_samples_leaf=10,  # Ensure robust splits
+            max_depth=5,
+            min_samples_leaf=10,
             random_state=42
         )
         model.fit(X_train, y_train)
@@ -133,8 +123,6 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
         logger.info(f"Predicted class: {fold_metrics['predicted_class']}")
         logger.info(f"Prediction probability: {fold_metrics['prediction_probability']:.3f}")
         logger.info(f"Accuracy: {fold_metrics['accuracy']:.3f}")
-        if fold_metrics['actual_class'] == 1:
-            logger.info("(Remission participant)")
     
     # Train final model on all data
     final_model = DecisionTreeClassifier(
@@ -158,19 +146,6 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
         'f1_std': float(results_df['f1'].std())
     }
     
-    # Calculate metrics for each class
-    remission_results = results_df[results_df['actual_class'] == 1]
-    non_remission_results = results_df[results_df['actual_class'] == 0]
-    
-    logger.info("\nClass-wise Prediction Results:")
-    logger.info(f"Remission participants (n={len(remission_results)}):")
-    logger.info(f"Correct predictions: {sum(remission_results['actual_class'] == remission_results['predicted_class'])}")
-    logger.info(f"Accuracy: {remission_results['accuracy'].mean():.3f}")
-    
-    logger.info(f"\nNon-remission participants (n={len(non_remission_results)}):")
-    logger.info(f"Correct predictions: {sum(non_remission_results['actual_class'] == non_remission_results['predicted_class'])}")
-    logger.info(f"Accuracy: {non_remission_results['accuracy'].mean():.3f}")
-    
     logger.info("\nOverall Cross-Validation Results:")
     logger.info(f"Accuracy: {metrics['accuracy_mean']:.3f} ± {metrics['accuracy_std']:.3f}")
     logger.info(f"Precision: {metrics['precision_mean']:.3f} ± {metrics['precision_std']:.3f}")
@@ -178,6 +153,32 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
     logger.info(f"F1: {metrics['f1_mean']:.3f} ± {metrics['f1_std']:.3f}")
     
     return final_model, metrics, fold_results
+
+def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metrics: Dict, 
+                         fold_results: list, output_path: Path):
+    """Save training results and artifacts."""
+    # Save fold-wise results
+    fold_results_df = pd.DataFrame(fold_results)
+    fold_results_df.to_csv(output_path / 'fold_results.csv', index=False)
+    mlflow.log_artifact(str(output_path / 'fold_results.csv'))
+    
+    # Save feature importance
+    feature_cols = df.drop(['Participant', 'Remission'], axis=1).columns
+    feature_importance = pd.DataFrame({
+        'Feature': feature_cols,
+        'Importance': [float(imp) for imp in model.feature_importances_]
+    }).sort_values('Importance', ascending=False)
+    
+    feature_importance.to_csv(output_path / 'feature_importance.csv', index=False)
+    mlflow.log_artifact(str(output_path / 'feature_importance.csv'))
+    
+    # Log metrics
+    for metric_name, value in metrics.items():
+        mlflow.log_metric(f"cv_{metric_name}", value)
+    
+    # Log top feature importances
+    for idx, row in feature_importance.head(10).iterrows():
+        mlflow.log_metric(f"feature_importance_{row['Feature']}", row['Importance'])
 
 def save_and_register_model(model: DecisionTreeClassifier, df: pd.DataFrame, model_name: str, output_path: Path):
     """Save and register model using MLflow."""
