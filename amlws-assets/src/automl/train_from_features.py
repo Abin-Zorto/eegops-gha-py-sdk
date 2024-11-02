@@ -11,7 +11,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, reca
 from mlflow.models.signature import infer_signature
 from typing import Dict, Any, Tuple
 import json
-import joblib
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -22,12 +22,20 @@ class WrappedModel(mlflow.pyfunc.PythonModel):
         self.model = model
 
     def predict(self, context, model_input):
+        if isinstance(model_input, dict):
+            return self.model.predict(pd.DataFrame(model_input))
         return self.model.predict(model_input)
+    
+    def predict_proba(self, context, model_input):
+        if isinstance(model_input, dict):
+            return self.model.predict_proba(pd.DataFrame(model_input))
+        return self.model.predict_proba(model_input)
 
 def parse_args():
     parser = argparse.ArgumentParser("train_from_features")
     parser.add_argument("--registered_features", type=str, help="Path to registered features data")
     parser.add_argument("--model_output", type=str, help="Path to model output")
+    parser.add_argument("--model_name", type=str, default="eeg_classifier", help="Name under which model will be registered")
     args = parser.parse_args()
     return args
 
@@ -171,44 +179,47 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
     
     return final_model, metrics, fold_results
 
-def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metrics: Dict, 
-                         fold_results: list, output_path: Path):
-    """Save training results and artifacts."""
-    # Save fold-wise results
-    fold_results_df = pd.DataFrame(fold_results)
-    fold_results_df.to_csv(output_path / 'fold_results.csv', index=False)
-    mlflow.log_artifact(output_path / 'fold_results.csv')
+def save_and_register_model(model: DecisionTreeClassifier, df: pd.DataFrame, model_name: str, output_path: Path):
+    """Save and register model using MLflow."""
+    # Create signature
+    input_example = df.drop(['Participant', 'Remission'], axis=1).iloc[:5]
+    signature = infer_signature(
+        df.drop(['Participant', 'Remission'], axis=1),
+        model.predict(df.drop(['Participant', 'Remission'], axis=1))
+    )
     
-    # Save feature importance
-    feature_cols = df.drop(['Participant', 'Remission'], axis=1).columns
-    feature_importance = pd.DataFrame({
-        'Feature': feature_cols,
-        'Importance': [float(imp) for imp in model.feature_importances_]  # Convert to native Python float
-    }).sort_values('Importance', ascending=False)
+    # Create wrapped model
+    wrapped_model = WrappedModel(model)
     
-    feature_importance.to_csv(output_path / 'feature_importance.csv', index=False)
-    mlflow.log_artifact(output_path / 'feature_importance.csv')
+    # First save the model locally using MLflow format
+    mlflow.pyfunc.save_model(
+        path=str(output_path),
+        python_model=wrapped_model,
+        signature=signature,
+        input_example=input_example
+    )
     
-    for idx, row in feature_importance.head(10).iterrows():
-        mlflow.log_metric(f"top_feature_{idx+1}_importance", row['Importance'])
+    # Now register the model in the workspace
+    registered_model = mlflow.pyfunc.log_model(
+        artifact_path="model",
+        python_model=wrapped_model,
+        signature=signature,
+        input_example=input_example,
+        registered_model_name=model_name
+    )
     
-    # Log metrics
-    for metric_name, value in metrics.items():
-        mlflow.log_metric(f"cv_{metric_name}", value)
+    logger.info(f"Model registered with name: {model_name}")
+    logger.info(f"Model version: {registered_model.version}")
     
-    model_details = {
-        'model_type': 'DecisionTreeClassifier',
-        'cv_folds': len(np.unique(df['Participant'])),
-        'features_used': list(feature_cols),
-        'model_parameters': {k: convert_to_serializable(v) for k, v in model.get_params().items()},
-        'cross_validation_metrics': metrics,
-        'fold_results': fold_results,
-        'training_time': float(time.time() - start_time)
+    # Save model info
+    model_info = {
+        "id": f"{model_name}:{registered_model.version}"
     }
     
-    with open(output_path / 'model_details.json', 'w') as f:
-        json.dump(model_details, f, indent=2)
-    mlflow.log_artifact(output_path / 'model_details.json')
+    with open(output_path / "model_info.json", "w") as f:
+        json.dump(model_info, f)
+    
+    return registered_model
 
 def main():
     global start_time
@@ -233,34 +244,25 @@ def main():
         
         # Save results
         output_path = Path(args.model_output)
-        if output_path.exists():
-            logger.info(f"Output directory {output_path} already exists. Saving results will overwrite existing files.")
         output_path.mkdir(parents=True, exist_ok=True)
         save_training_results(model, df, metrics, fold_results, output_path)
         
-        # Save model using direct MLflow logging instead of save_model
-        wrapped_model = WrappedModel(model)
-        signature = infer_signature(
-            df.drop(['Participant', 'Remission'], axis=1),
-            model.predict(df.drop(['Participant', 'Remission'], axis=1))
+        # Save and register model
+        registered_model = save_and_register_model(
+            model=model,
+            df=df,
+            model_name=args.model_name,
+            output_path=output_path
         )
         
-        # Log the model to the current MLflow run
-        mlflow.pyfunc.log_model(
-            artifact_path="model",
-            python_model=wrapped_model,
-            signature=signature
-        )
-        
-        # Save the model artifacts separately if needed
-        model_path = output_path / "model_artifacts"
-        model_path.mkdir(parents=True, exist_ok=True)
-        
-        # Save the raw decision tree model
-        joblib.dump(model, model_path / "decision_tree_model.joblib")
+        # Create deploy flag
+        deploy_flag = 1  # Always deploy since we're in the training pipeline
+        with open(output_path / "deploy_flag", "wb") as f:
+            f.write(deploy_flag.to_bytes(1, byteorder='big'))
         
         # Log final success metric
         mlflow.log_metric("training_success", 1)
+        logger.info("Training completed successfully!")
         
     except Exception as e:
         logger.error(f"Error in training: {str(e)}")
