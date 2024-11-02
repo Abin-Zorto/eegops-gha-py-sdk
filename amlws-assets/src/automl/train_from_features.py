@@ -191,25 +191,32 @@ def save_and_register_model(model, df, model_name, output_path):
     
     # Save model locally first using MLflow format
     model_path = output_path / "model"
+    logger.info(f"Saving model locally to path: {model_path}")
     mlflow.sklearn.save_model(
         sk_model=model,
         path=str(model_path),
         signature=signature,
         input_example=input_example
     )
-    logger.info(f"Model saved locally to: {model_path}")
+    logger.info(f"Model saved locally at: {model_path}")
+    logger.info(f"Model directory contents: {os.listdir(model_path)}")
     
     # Log model to MLflow tracking
+    run_id = mlflow.active_run().info.run_id
     mlflow.sklearn.log_model(
         sk_model=model,
         artifact_path="model",
         signature=signature,
         input_example=input_example
     )
+    logger.info(f"Model logged to MLflow with run_id: {run_id}")
+    logger.info(f"MLflow model URI: runs:/{run_id}/model")
     
     # Register the model in Azure ML model registry
+    model_uri = f"runs:/{run_id}/model"
+    logger.info(f"Registering model from URI: {model_uri}")
     registered_model = mlflow.register_model(
-        f"runs:/{mlflow.active_run().info.run_id}/model",
+        model_uri,
         model_name
     )
     

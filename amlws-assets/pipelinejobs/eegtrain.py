@@ -78,6 +78,9 @@ def eeg_train_pipeline(registered_features, target_column_name="Remission"):
         registered_features=registered_features
     )
     
+    # Log the model output path
+    print(f"Train job output path: {train_job.outputs.model_output}")
+    
     # RAI dashboard construction
     create_rai_job = rai_constructor(
         title="EEG Analysis RAI Dashboard",
@@ -88,6 +91,9 @@ def eeg_train_pipeline(registered_features, target_column_name="Remission"):
         test_dataset=registered_features,  # Using same data since we're doing LOGO CV
         target_column_name=target_column_name,
     )
+    
+    # Add logging for RAI job
+    print(f"RAI constructor model input path: {create_rai_job.inputs.model_input}")
     create_rai_job.set_limits(timeout=300)
     
     # Add error analysis
