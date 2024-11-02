@@ -1,0 +1,49 @@
+name: 'Run Pipeline'
+description: 'Runs a machine learning pipeline in Azure Machine Learning'
+inputs:
+  experiment_name:
+    description: 'Name of the experiment'
+    required: true
+  environment_name:
+    description: 'Name of the environment'
+    required: true
+  compute_name:
+    description: 'Name of the compute cluster'
+    required: true
+  version:
+    description: 'Version of the registered features'
+    required: true
+  model_name:
+    description: 'Name of the model'
+    required: true
+  azure_credentials:
+    description: 'Azure credentials'
+    required: true
+  pipeline_path:
+    description: 'Path to the pipeline script'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install azure-ai-ml azure-identity
+      shell: bash
+
+    - name: Run pipeline
+      env:
+        AZURE_CREDENTIALS: ${{ inputs.azure_credentials }}
+      run: |
+        python ${{ inputs.pipeline_path }} \
+          --experiment_name "${{ inputs.experiment_name }}" \
+          --environment_name "${{ inputs.environment_name }}" \
+          --compute_name "${{ inputs.compute_name }}" \
+          --model_name "${{ inputs.model_name }}" \
+          --version "${{ inputs.version }}"
+      shell: bash

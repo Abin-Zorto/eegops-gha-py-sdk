@@ -5,15 +5,13 @@ from azure.identity import ClientSecretCredential
 from azure.ai.ml import MLClient, Input, Output, command, dsl
 import os
 import json
-import uuid
-import time
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def parse_args():
-    parser = argparse.ArgumentParser("Deploy EEG Analysis Pipeline")
+    parser = argparse.ArgumentParser("Deploy EEG Training Pipeline")
     parser.add_argument("--experiment_name", type=str, help="Experiment Name")
     parser.add_argument("--compute_name", type=str, help="Compute Cluster Name")
     parser.add_argument("--data_name", type=str, help="Data Asset Name")
@@ -25,37 +23,8 @@ def parse_args():
     logger.info(f"Parsed arguments: {args}")
     return args
 
-def setup_rai_components(ml_client_registry):
-    """Set up RAI components from registry"""
-    logger.info("Setting up RAI components...")
-    label = "latest"
-    
-    rai_constructor = ml_client_registry.components.get(
-        name="microsoft_azureml_rai_tabular_insight_constructor", 
-        label=label
-    )
-    version = rai_constructor.version
-    logger.info(f"Using RAI components version: {version}")
-    
-    components = {
-        'constructor': rai_constructor,
-        'error_analysis': ml_client_registry.components.get(
-            name="microsoft_azureml_rai_tabular_erroranalysis", 
-            version=version
-        ),
-        'explanation': ml_client_registry.components.get(
-            name="microsoft_azureml_rai_tabular_explanation", 
-            version=version
-        ),
-        'gather': ml_client_registry.components.get(
-            name="microsoft_azureml_rai_tabular_insight_gather", 
-            version=version
-        )
-    }
-    logger.info("RAI components setup complete")
-    return components
-
 def create_train_component(parent_dir, jobtype, environment_name):
+    """Create the training component"""
     logger.info(f"Creating training component with environment: {environment_name}")
     return command(
         name="train_model_from_features",
@@ -64,11 +33,11 @@ def create_train_component(parent_dir, jobtype, environment_name):
         command="python train_from_features.py \
                 --registered_features ${{inputs.registered_features}} \
                 --model_output ${{outputs.model_output}} \
-                --model_name ${{inputs.model_name}}",  # Added model_name as input
+                --model_name ${{inputs.model_name}}",
         environment=environment_name+"@latest",
         inputs={
             "registered_features": Input(type="mltable"),
-            "model_name": Input(type="string")  # Added model_name input
+            "model_name": Input(type="string")
         },
         outputs={
             "model_output": Output(type="uri_folder")
@@ -76,11 +45,11 @@ def create_train_component(parent_dir, jobtype, environment_name):
     )
 
 @dsl.pipeline(
-    description="EEG Train Pipeline with RAI Dashboard",
-    display_name="EEG-Train-Pipeline-RAI"
+    description="EEG Model Training Pipeline",
+    display_name="EEG-Train-Pipeline"
 )
-def eeg_train_pipeline(registered_features, model_name, target_column_name="Remission"):
-    """Pipeline to train model and generate RAI dashboard"""
+def eeg_train_pipeline(registered_features, model_name):
+    """Pipeline to train model"""
     logger.info("Initializing EEG training pipeline")
     
     # Training step
@@ -90,63 +59,12 @@ def eeg_train_pipeline(registered_features, model_name, target_column_name="Remi
         model_name=model_name
     )
     
-    # Simplified logging
-    logger.info("Training job configured")
-    
-    # RAI dashboard construction
-    logger.info("Setting up RAI constructor job")
-    
-    create_rai_job = rai_constructor(
-        title="EEG Analysis RAI Dashboard",
-        task_type="classification",
-        model_info="mlflow_model",
-        model_input=train_job.outputs.model_output,
-        train_dataset=registered_features,
-        test_dataset=registered_features,
-        target_column_name=target_column_name,
-    )
-    
-    # Simplified logging that won't cause binding errors
-    logger.info("RAI constructor job configured")
-    
-    create_rai_job.set_limits(timeout=300)
-    
-    # Rest of the pipeline remains the same...
-    error_job = rai_error_analysis(
-        rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
-    )
-    error_job.set_limits(timeout=300)
-    
-    explanation_job = rai_explanation(
-        rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
-        comment="Feature importance and SHAP values for EEG classification model"
-    )
-    explanation_job.set_limits(timeout=300)
-    
-    rai_gather_job = rai_gather(
-        constructor=create_rai_job.outputs.rai_insights_dashboard,
-        insight_3=error_job.outputs.error_analysis,
-        insight_4=explanation_job.outputs.explanation,
-    )
-    rai_gather_job.set_limits(timeout=300)
-    
-    rand_path = str(uuid.uuid4())
-    dashboard_path = f"azureml://datastores/workspaceblobstore/paths/{rand_path}/dashboard/"
-    logger.info(f"Dashboard will be saved to: {dashboard_path}")
-    
-    rai_gather_job.outputs.dashboard = Output(
-        path=dashboard_path,
-        mode="upload",
-        type="uri_folder",
-    )
-    
     return {
-        "trained_model": train_job.outputs.model_output,
-        "rai_dashboard": rai_gather_job.outputs.dashboard
+        "trained_model": train_job.outputs.model_output
     }
 
 def main():
-    logger.info("Starting pipeline deployment")
+    logger.info("Starting training pipeline deployment")
     args = parse_args()
     
     # Set up Azure ML client
@@ -164,39 +82,18 @@ def main():
         logger.info(f"Found compute target: {compute_target.name}")
     except Exception as e:
         logger.error(f"Error accessing compute cluster: {str(e)}")
-        logger.error("No compute found")
         raise
     
     parent_dir = "amlws-assets/src"
     logger.info(f"Using parent directory: {parent_dir}")
     
-    # Get RAI components from registry
-    registry_name = "azureml"
-    logger.info(f"Accessing registry: {registry_name}")
-    ml_client_registry = MLClient(
-        credential=credential,
-        subscription_id=ml_client.subscription_id,
-        resource_group_name=ml_client.resource_group_name,
-        registry_name=registry_name,
-    )
-    
-    # Setup components
-    rai_components = setup_rai_components(ml_client_registry)
-    
-    # Create training component and assign RAI components
-    logger.info("Creating pipeline components")
+    # Create training component
     global train_model_from_features
-    global rai_constructor, rai_error_analysis, rai_explanation, rai_gather
-    
     train_model_from_features = create_train_component(
         parent_dir, 
         args.jobtype, 
         args.environment_name
     )
-    rai_constructor = rai_components['constructor']
-    rai_error_analysis = rai_components['error_analysis']
-    rai_explanation = rai_components['explanation']
-    rai_gather = rai_components['gather']
     
     # Get the registered MLTable
     logger.info(f"Getting registered features version: {args.version}")
