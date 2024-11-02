@@ -180,49 +180,38 @@ def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metri
     for idx, row in feature_importance.head(10).iterrows():
         mlflow.log_metric(f"feature_importance_{row['Feature']}", row['Importance'])
 
-def save_and_register_model(model: DecisionTreeClassifier, df: pd.DataFrame, model_name: str, output_path: Path):
-    """Register model using MLflow."""
-    # Create signature
+def save_and_register_model(model, df, model_name, output_path):
+    """Save and register model using MLflow."""
+    # Create model signature
     input_example = df.drop(['Participant', 'Remission'], axis=1).iloc[:5]
     signature = infer_signature(
         df.drop(['Participant', 'Remission'], axis=1),
         model.predict(df.drop(['Participant', 'Remission'], axis=1))
     )
     
-    # Create wrapped model
-    wrapped_model = WrappedModel(model)
+    # Save model locally first using MLflow format
+    model_path = output_path / "model"
+    mlflow.sklearn.save_model(
+        sk_model=model,
+        path=str(model_path),
+        signature=signature,
+        input_example=input_example
+    )
+    logger.info(f"Model saved locally to: {model_path}")
     
-    # First save the model locally to the output path
-    local_path = output_path / "model"
-    mlflow.pyfunc.save_model(
-        path=local_path,
-        python_model=wrapped_model,
+    # Log model to MLflow tracking
+    mlflow.sklearn.log_model(
+        sk_model=model,
+        artifact_path="model",
         signature=signature,
         input_example=input_example
     )
     
-    # Then register the model in the workspace
-    registered_model = mlflow.pyfunc.log_model(
-        artifact_path="model",
-        python_model=wrapped_model,
-        signature=signature,
-        input_example=input_example,
-        registered_model_name=model_name
+    # Register the model in Azure ML model registry
+    registered_model = mlflow.register_model(
+        f"runs:/{mlflow.active_run().info.run_id}/model",
+        model_name
     )
-    
-    logger.info(f"Model registered with name: {model_name}")
-    logger.info(f"Model saved locally to: {local_path}")
-    
-    # Save model info
-    model_info = {"id": f"{model_name}:{registered_model.version if hasattr(registered_model, 'version') else 'unknown'}"} 
-    
-    with open(output_path / "model_info.json", "w") as f:
-        json.dump(model_info, f)
-    
-    # Create deploy flag
-    deploy_flag = 1  # Always deploy since we're in the training pipeline
-    with open(output_path / "deploy_flag", "wb") as f:
-        f.write(deploy_flag.to_bytes(1, byteorder='big'))
     
     return registered_model
 
