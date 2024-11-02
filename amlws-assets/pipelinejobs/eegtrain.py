@@ -96,8 +96,9 @@ def eeg_train_pipeline(registered_features, model_name, target_column_name="Remi
     # Add detailed logging for model paths
     logger.info(f"Train job output structure:")
     logger.info(f"- Full path: {train_job.outputs.model_output}")
-    logger.info(f"- Output name: {train_job.outputs.model_output.name}")
-    logger.info(f"- Output path: {train_job.outputs.model_output.path}")
+    logger.info(f"- Output type: {type(train_job.outputs.model_output)}")
+    logger.info(f"- Output _name: {train_job.outputs.model_output._name}")
+    logger.info(f"- Output attributes: {dir(train_job.outputs.model_output)}")
     
     # RAI dashboard construction
     logger.info("Setting up RAI constructor job")
@@ -116,44 +117,7 @@ def eeg_train_pipeline(registered_features, model_name, target_column_name="Remi
     logger.info(f"RAI constructor job created with:")
     logger.info(f"- Model input: {create_rai_job.inputs.model_input}")
     
-    # Changed: Log the RAI job itself instead of trying to access its inputs
-    logger.info(f"RAI constructor job created: {create_rai_job.name}")
-    
-    create_rai_job.set_limits(timeout=300)
-    
-    # Rest of the pipeline remains the same...
-    error_job = rai_error_analysis(
-        rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
-    )
-    error_job.set_limits(timeout=300)
-    
-    explanation_job = rai_explanation(
-        rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
-        comment="Feature importance and SHAP values for EEG classification model"
-    )
-    explanation_job.set_limits(timeout=300)
-    
-    rai_gather_job = rai_gather(
-        constructor=create_rai_job.outputs.rai_insights_dashboard,
-        insight_3=error_job.outputs.error_analysis,
-        insight_4=explanation_job.outputs.explanation,
-    )
-    rai_gather_job.set_limits(timeout=300)
-    
-    rand_path = str(uuid.uuid4())
-    dashboard_path = f"azureml://datastores/workspaceblobstore/paths/{rand_path}/dashboard/"
-    logger.info(f"Dashboard will be saved to: {dashboard_path}")
-    
-    rai_gather_job.outputs.dashboard = Output(
-        path=dashboard_path,
-        mode="upload",
-        type="uri_folder",
-    )
-    
-    return {
-        "trained_model": train_job.outputs.model_output,
-        "rai_dashboard": rai_gather_job.outputs.dashboard
-    }
+    return create_rai_job
 
 def main():
     logger.info("Starting pipeline deployment")
