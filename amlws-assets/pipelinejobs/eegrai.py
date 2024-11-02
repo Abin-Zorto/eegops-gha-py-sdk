@@ -25,28 +25,32 @@ def parse_args():
     return args
 
 def setup_rai_components(ml_client_registry):
-    """Setup RAI components from the Azure ML registry"""
-    logger.info("Setting up RAI components")
+    """Set up RAI components from registry"""
+    logger.info("Setting up RAI components...")
+    label = "latest"
+    
+    rai_constructor = ml_client_registry.components.get(
+        name="microsoft_azureml_rai_tabular_insight_constructor", 
+        label=label
+    )
+    version = rai_constructor.version
+    logger.info(f"Using RAI components version: {version}")
     
     components = {
-        'constructor': ml_client_registry.components.get(
-            name="microsoft_azureml_rai_tabular_insight_constructor",
-            version="0.17.0"
-        ),
+        'constructor': rai_constructor,
         'error_analysis': ml_client_registry.components.get(
-            name="microsoft_azureml_rai_tabular_error_analysis",
-            version="0.17.0"
+            name="microsoft_azureml_rai_tabular_erroranalysis", 
+            version=version
         ),
         'explanation': ml_client_registry.components.get(
-            name="microsoft_azureml_rai_tabular_explanation",
-            version="0.17.0"
+            name="microsoft_azureml_rai_tabular_explanation", 
+            version=version
         ),
         'gather': ml_client_registry.components.get(
-            name="microsoft_azureml_rai_tabular_insight_gather",
-            version="0.17.0"
+            name="microsoft_azureml_rai_tabular_insight_gather", 
+            version=version
         )
     }
-    
     logger.info("RAI components setup complete")
     return components
 
