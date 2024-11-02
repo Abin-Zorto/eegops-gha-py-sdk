@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 import pandas as pd
+import numpy as np
 import mlflow
 import logging
 import joblib
@@ -30,6 +31,22 @@ def parse_args():
     logger.info(f"Received arguments: {args}")
     return args
 
+def validate_data(df):
+    """Validate the input data and log relevant information."""
+    logger.info(f"DataFrame shape: {df.shape}")
+    logger.info(f"Columns: {df.columns.tolist()}")
+    
+    if 'Participant' not in df.columns:
+        raise ValueError("'Participant' column not found in data")
+    
+    logger.info(f"Number of unique participants: {df['Participant'].nunique()}")
+    logger.info(f"Participant value counts:\n{df['Participant'].value_counts()}")
+    
+    # Check for any null values
+    null_counts = df['Participant'].isnull().sum()
+    if null_counts > 0:
+        raise ValueError(f"Found {null_counts} null values in Participant column")
+
 def main():
     args = parse_args()
     features_path = Path(args.registered_features)
@@ -40,10 +57,21 @@ def main():
     logger.info(f"Loading training data from: {features_path}")
     df = pd.read_parquet(features_path / "features.parquet")
     
-    # Extract groups for LOGO CV
-    groups = df["Participant"].values
+    # Validate input data
+    validate_data(df)
+    
+    # Extract groups and ensure they're in the correct format
+    groups = df["Participant"].astype(str).values  # Convert to string to ensure consistent handling
+    logger.info(f"Groups array shape: {groups.shape}")
+    logger.info(f"Groups array dtype: {groups.dtype}")
+    
     X = df.drop(["Participant", "Remission"], axis=1)
     y = df["Remission"]
+
+    # Verify data alignment
+    logger.info(f"X shape: {X.shape}")
+    logger.info(f"y shape: {y.shape}")
+    logger.info(f"groups shape: {groups.shape}")
 
     # Train base model
     logger.info("Training the Decision Tree Classifier...")
@@ -52,8 +80,18 @@ def main():
         min_samples_leaf=20
     )
     
-    # Set up LeaveOneGroupOut CV
+    # Set up LeaveOneGroupOut CV and verify splits
     logo = LeaveOneGroupOut()
+    n_splits = sum(1 for _ in logo.split(X, y, groups))
+    logger.info(f"Number of splits in LeaveOneGroupOut: {n_splits}")
+    
+    # Verify at least one split can be generated
+    try:
+        next(logo.split(X, y, groups))
+        logger.info("Successfully verified split generation")
+    except Exception as e:
+        logger.error(f"Failed to generate splits: {str(e)}")
+        raise
     
     # Wrap with CalibratedClassifierCV using LOGO
     logger.info("Calibrating probabilities using Leave-One-Group-Out cross-validation...")
@@ -61,21 +99,16 @@ def main():
         base_clf, 
         cv=logo, 
         method='sigmoid',
-        n_jobs=-1  # Use all available cores
+        n_jobs=-1
     )
     
-    # Fit model with groups
+    # Fit model with explicit groups parameter
     clf.fit(X, y, groups=groups)
 
     # Test probability predictions
     try:
         test_proba = clf.predict_proba(X.iloc[:1])
         logger.info(f"Probability prediction test successful: {test_proba}")
-        
-        # Log number of groups used in calibration
-        n_splits = sum(1 for _ in logo.split(X, y, groups))
-        logger.info(f"Number of participant groups used in calibration: {n_splits}")
-        
     except Exception as e:
         logger.error(f"Probability prediction test failed: {str(e)}")
         raise
