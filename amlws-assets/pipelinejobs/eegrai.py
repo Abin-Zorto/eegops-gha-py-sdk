@@ -106,6 +106,7 @@ def create_rai_pipeline(
             test_dataset=test_data,
             target_column_name=target_column_name,
             categorical_column_names='["Participant"]',
+            dropped_features='["Participant"]',
             classes='["Non-remission", "Remission"]'
         )
         create_rai_job.set_limits(timeout=300)
