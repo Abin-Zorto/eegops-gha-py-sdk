@@ -76,7 +76,7 @@ def eeg_rai_pipeline(
         test_dataset=registered_features,
         target_column_name=target_column_name,
         categorical_column_names="[]",
-        classes=["Non-remission", "Remission"]
+        classes='["Non-remission", "Remission"]'
     )
     
     create_rai_job.set_limits(timeout=300)
