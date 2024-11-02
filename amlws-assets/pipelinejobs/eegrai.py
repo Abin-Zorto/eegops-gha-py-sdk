@@ -95,10 +95,6 @@ def create_rai_pipeline(
         
         logger.info(f"Using model ID: {expected_model_id}")
         logger.info(f"Azure ML Model URI: {azureml_model_id}")
-
-        feature_metadata = {
-            "dropped_features": ["Participant"]
-        }
         
         create_rai_job = rai_components['constructor'](
             title="RAI dashboard EEG",
@@ -108,9 +104,9 @@ def create_rai_pipeline(
             train_dataset=train_data,
             test_dataset=test_data,
             target_column_name=target_column_name,
-            categorical_column_names='["Participant"]',
-            feature_metadata=feature_metadata,
-            classes='["Non-remission", "Remission"]'
+            categorical_column_names='[]',  # Remove 'Participant' from categorical columns
+            classes='["Non-remission", "Remission"]',
+            feature_metadata='{"dropped_features": ["Participant"]}'  # Add feature metadata to drop Participant column
         )
         create_rai_job.set_limits(timeout=300)
 
