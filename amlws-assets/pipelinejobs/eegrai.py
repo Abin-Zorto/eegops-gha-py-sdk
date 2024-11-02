@@ -25,32 +25,28 @@ def parse_args():
     return args
 
 def setup_rai_components(ml_client_registry):
-    """Set up RAI components from registry"""
-    logger.info("Setting up RAI components...")
-    label = "latest"
-    
-    rai_constructor = ml_client_registry.components.get(
-        name="microsoft_azureml_rai_tabular_insight_constructor", 
-        label=label
-    )
-    version = rai_constructor.version
-    logger.info(f"Using RAI components version: {version}")
+    """Setup RAI components from the Azure ML registry"""
+    logger.info("Setting up RAI components")
     
     components = {
-        'constructor': rai_constructor,
+        'constructor': ml_client_registry.components.get(
+            name="microsoft_azureml_rai_tabular_insight_constructor",
+            version="0.17.0"
+        ),
         'error_analysis': ml_client_registry.components.get(
-            name="microsoft_azureml_rai_tabular_erroranalysis", 
-            version=version
+            name="microsoft_azureml_rai_tabular_error_analysis",
+            version="0.17.0"
         ),
         'explanation': ml_client_registry.components.get(
-            name="microsoft_azureml_rai_tabular_explanation", 
-            version=version
+            name="microsoft_azureml_rai_tabular_explanation",
+            version="0.17.0"
         ),
         'gather': ml_client_registry.components.get(
-            name="microsoft_azureml_rai_tabular_insight_gather", 
-            version=version
+            name="microsoft_azureml_rai_tabular_insight_gather",
+            version="0.17.0"
         )
     }
+    
     logger.info("RAI components setup complete")
     return components
 
@@ -71,8 +67,8 @@ def eeg_rai_pipeline(
         title="EEG RAI Analysis",
         task_type="classification",
         model_info=Input(
-            type="mlflow_model",
-            path=f"azureml:{model_name}:2"
+            type="custom_model",
+            path=f"azureml:{model_name}@latest"
         ),
         train_dataset=registered_features,
         test_dataset=registered_features,
