@@ -5,32 +5,21 @@ import mlflow
 import logging
 import joblib
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.model_selection import LeaveOneGroupOut
 from mlflow.pyfunc import PythonModel
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class ModelWrapper(mlflow.pyfunc.PythonModel):
     def __init__(self, model):
         self.model = model
-
+    
     def predict(self, context, model_input):
-        # For classification tasks, return probability of positive class
-        if hasattr(self.model, 'predict_proba'):
-            proba = self.model.predict_proba(model_input)
-            return proba[:, 1]  # Return probabilities for positive class
-        return self.model.predict(model_input)
-
-    def predict_proba(self, model_input):
-        # Direct method for RAIInsights to call
-        return self.model.predict_proba(model_input)
-
-    # This is the main entry point for MLflow models
-    def _predict(self, context, model_input):
-        if isinstance(model_input, pd.DataFrame):
-            return self.predict(context, model_input)
-        return self.predict(context, pd.DataFrame(model_input))
+        if not isinstance(model_input, pd.DataFrame):
+            model_input = pd.DataFrame(model_input)
+        return self.model.predict_proba(model_input)[:, 1]
 
 def parse_args():
     parser = argparse.ArgumentParser("train_from_features")
@@ -50,47 +39,64 @@ def main():
     # Load training data
     logger.info(f"Loading training data from: {features_path}")
     df = pd.read_parquet(features_path / "features.parquet")
+    
+    # Extract groups for LOGO CV
+    groups = df["Participant"].values
     X = df.drop(["Participant", "Remission"], axis=1)
     y = df["Remission"]
 
-    # Train the model
+    # Train base model
     logger.info("Training the Decision Tree Classifier...")
-    clf = DecisionTreeClassifier(
+    base_clf = DecisionTreeClassifier(
         random_state=42,
-        min_samples_leaf=20  # Helps ensure better probability estimates
+        min_samples_leaf=20
     )
-    clf.fit(X, y)
     
-    # Verify probability predictions work
+    # Set up LeaveOneGroupOut CV
+    logo = LeaveOneGroupOut()
+    
+    # Wrap with CalibratedClassifierCV using LOGO
+    logger.info("Calibrating probabilities using Leave-One-Group-Out cross-validation...")
+    clf = CalibratedClassifierCV(
+        base_clf, 
+        cv=logo, 
+        method='sigmoid',
+        n_jobs=-1  # Use all available cores
+    )
+    
+    # Fit model with groups
+    clf.fit(X, y, groups=groups)
+
+    # Test probability predictions
     try:
         test_proba = clf.predict_proba(X.iloc[:1])
         logger.info(f"Probability prediction test successful: {test_proba}")
+        
+        # Log number of groups used in calibration
+        n_splits = sum(1 for _ in logo.split(X, y, groups))
+        logger.info(f"Number of participant groups used in calibration: {n_splits}")
+        
     except Exception as e:
         logger.error(f"Probability prediction test failed: {str(e)}")
         raise
 
     logger.info("Model training completed.")
 
-    # Wrap the trained model
+    # Wrap and save the calibrated model
     model_wrapper = ModelWrapper(model=clf)
-
-    # Define model signature
-    signature = mlflow.models.infer_signature(X, clf.predict(X))
-
-    # Save the MLflow PyFunc model
+    signature = mlflow.models.infer_signature(X, clf.predict_proba(X)[:, 1])
+    
+    # Save model artifacts
     logger.info(f"Saving the MLflow PyFunc model to: {model_output_path}")
     mlflow.pyfunc.save_model(
         path=model_output_path,
         python_model=model_wrapper,
         signature=signature
     )
-
-    # Save the trained model using joblib
     joblib.dump(clf, model_output_path / "model.pkl")
     logger.info("Model artifacts saved successfully.")
 
-    # Assuming 'trained_model' is your actual model
-    model_wrapper = ModelWrapper(clf)
+    # Register the model
     mlflow.pyfunc.log_model(
         artifact_path="model",
         python_model=model_wrapper,
