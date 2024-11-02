@@ -90,16 +90,11 @@ def eeg_train_pipeline(registered_features, model_name, target_column_name="Remi
         model_name=model_name
     )
     
-    # Log paths for debugging
-    logger.info(f"Train job output path: {train_job.outputs.model_output}")
-    
-    # Add detailed logging for model paths
-    logger.info(f"Train job output structure:")
-    logger.info(f"- Full path: {train_job.outputs.model_output}")
+    # Simplified logging
+    logger.info("Training job configured")
     
     # RAI dashboard construction
     logger.info("Setting up RAI constructor job")
-    logger.info(f"RAI constructor model input path (before): {train_job.outputs.model_output}")
     
     create_rai_job = rai_constructor(
         title="EEG Analysis RAI Dashboard",
@@ -111,11 +106,8 @@ def eeg_train_pipeline(registered_features, model_name, target_column_name="Remi
         target_column_name=target_column_name,
     )
     
-    logger.info(f"RAI constructor job created with:")
-    logger.info(f"- Model input: {create_rai_job.inputs.model_input}")
-    
-    # Changed: Log the RAI job itself instead of trying to access its inputs
-    logger.info(f"RAI constructor job created: {create_rai_job.name}")
+    # Simplified logging that won't cause binding errors
+    logger.info("RAI constructor job configured")
     
     create_rai_job.set_limits(timeout=300)
     
