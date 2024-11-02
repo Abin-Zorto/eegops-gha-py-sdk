@@ -58,8 +58,7 @@ def main():
     mlflow.pyfunc.save_model(
         path=model_output_path,
         python_model=model_wrapper,
-        signature=signature,
-        artifacts={"model": "model.pkl"}
+        signature=signature
     )
 
     # Save the trained model using joblib
