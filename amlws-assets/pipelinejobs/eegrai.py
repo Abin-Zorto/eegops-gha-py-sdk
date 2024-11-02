@@ -84,24 +84,29 @@ def create_rai_pipeline(
     @dsl.pipeline(
         compute=compute_name,
         description="RAI insights on EEG data",
+        experiment_name=f"RAI_insights_{model_name}",
     )
     def rai_decision_pipeline(
-        target_column_name: str,
-        train_data: Input,
-        test_data: Input
+        target_column_name, train_data, test_data
     ):
+        args = parse_args()
+        model_name = args.model_name
+        expected_model_id = f"{model_name}:2"
+        azureml_model_id = f"azureml:{expected_model_id}"
         # Initiate the RAIInsights
         create_rai_job = rai_components['constructor'](
             title="RAI dashboard EEG",
             task_type="classification",
-            model=Input(type=AssetTypes.MLFLOW_MODEL, path=f"azureml:{model_name}@latest"),
+            model_info=expected_model_id,
+            model_input=Input(type=AssetTypes.MLFLOW_MODEL, path=azureml_model_id),  # Use model_input instead of model
             train_dataset=train_data,
             test_dataset=test_data,
             target_column_name=target_column_name,
-            categorical_column_names=[],
-            classes=["Non-remission", "Remission"]
+            categorical_column_names="[]",  # Pass as string
+            classes='["Non-remission", "Remission"]'  # Pass as string
         )
         create_rai_job.set_limits(timeout=300)
+
 
         error_job = rai_components['error_analysis'](
             rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
