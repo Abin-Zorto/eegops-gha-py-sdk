@@ -64,7 +64,7 @@ def eeg_rai_pipeline(
 ):
     """Pipeline to generate RAI dashboard using registered model"""
     logger.info("Initializing EEG RAI pipeline")
-    
+    args = parse_args()
     # RAI dashboard construction using registered model
     logger.info("Setting up RAI constructor job")
     create_rai_job = rai_constructor(
@@ -72,7 +72,7 @@ def eeg_rai_pipeline(
         task_type="classification",
         model_info=Input(
             type="custom_model",
-            path=f"azureml:{model_name}@latest"
+            path=f"azureml:{args.model_name}@latest"
         ),
         train_dataset=registered_features,
         test_dataset=registered_features,
