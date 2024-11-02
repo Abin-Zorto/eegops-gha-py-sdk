@@ -58,12 +58,10 @@ def create_train_component(parent_dir, jobtype, environment_name):
         code=os.path.join(parent_dir, jobtype),
         command="python train_from_features.py \
                 --registered_features ${{inputs.registered_features}} \
-                --model_output ${{outputs.model_output}} \
-                --model_name ${{inputs.model_name}}",
+                --model_output ${{outputs.model_output}}",
         environment=environment_name+"@latest",
         inputs={
-            "registered_features": Input(type="mltable"),
-            "model_name": Input(type="string", default="eeg_classifier")
+            "registered_features": Input(type="mltable")
         },
         outputs={
             "model_output": Output(type="uri_folder")
