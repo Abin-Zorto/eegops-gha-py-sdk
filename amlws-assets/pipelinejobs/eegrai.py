@@ -1,5 +1,5 @@
 import argparse
-from azure.ai.ml.entities import Data, Model
+from azure.ai.ml.entities import Data, Model, Environment
 from azure.ai.ml.constants import AssetTypes
 from azure.identity import ClientSecretCredential
 from azure.ai.ml import MLClient, Input, Output, command, dsl
@@ -9,45 +9,9 @@ import uuid
 import time
 import logging
 from typing import Dict
-import pandas as pd
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-def load_and_modify_mltable(ml_client, data_name, version, drop_columns):
-    """Load MLTable, drop specified columns, and save as new MLTable."""
-    
-    # Get the dataset asset
-    dataset = ml_client.data.get(name=data_name, version=version)
-    
-    # Read the data into a pandas DataFrame
-    df = pd.read_parquet(dataset.path)
-    
-    # Drop specified columns
-    df.drop(columns=drop_columns, inplace=True)
-    logger.info(f"Dropped columns: {drop_columns}")
-    
-    # Create a temporary local path for the modified data
-    import tempfile
-    temp_dir = tempfile.mkdtemp()
-    temp_path = os.path.join(temp_dir, "modified_data.parquet")
-    df.to_parquet(temp_path)
-    
-    # Register the modified data as a new asset
-    modified_data_name = f"{data_name}_modified"
-    modified_data = Data(
-        path=temp_path,
-        type="mltable",
-        name=modified_data_name,
-        version=version,
-        description=f"Modified version of {data_name} with columns {drop_columns} removed"
-    )
-    
-    ml_client.data.create_or_update(modified_data)
-    logger.info(f"Registered modified dataset: {modified_data_name}")
-    
-    # Return new MLTable as Input type for pipeline
-    return Input(type="mltable", path=f"azureml:{modified_data_name}:{version}", mode="ro_mount")
-
 
 def parse_args():
     parser = argparse.ArgumentParser("Deploy EEG Analysis Pipeline")
@@ -57,6 +21,7 @@ def parse_args():
     parser.add_argument("--model_name", type=str, required=True, help="Model Name")
     parser.add_argument("--version", type=str, required=True, help="Version of registered features")
     parser.add_argument("--model_version", type=str, required=False, default="latest", help="Version of the registered model")
+    parser.add_argument("--environment_name", type=str, required=True, help="Environment to use for preprocessing")
     return parser.parse_args()
 
 def setup_rai_components(ml_client_registry):
@@ -96,36 +61,92 @@ def setup_rai_components(ml_client_registry):
     logger.info("RAI components setup complete")
     return components
 
+def create_data_prep_component(environment_id: str):
+    """Create a component to preprocess data and create train/test splits"""
+    
+    @command(
+        name="preprocess_and_split",
+        display_name="Preprocess and Split EEG Data",
+        description="Removes Participant column and creates train/test splits",
+        environment=environment_id
+    )
+    def preprocess_and_split(
+        input_data: str,
+        train_data: str,
+        test_data: str,
+        test_size: float = 0.2,
+        random_state: int = 42
+    ):
+        import pandas as pd
+        from sklearn.model_selection import train_test_split
+        import os
+        import json
+        
+        # Read MLTable
+        df = pd.read_table(input_data)
+        
+        # Drop Participant column
+        df = df.drop(columns=['Participant'])
+        
+        # Split the data
+        train_df, test_df = train_test_split(
+            df, 
+            test_size=test_size,
+            random_state=random_state,
+            stratify=df['Remission']  # Stratify by target
+        )
+        
+        # Save train data
+        train_path = os.path.join(train_data, 'train.csv')
+        train_df.to_csv(train_path, index=False)
+        
+        # Save test data
+        test_path = os.path.join(test_data, 'test.csv')
+        test_df.to_csv(test_path, index=False)
+        
+        # Create MLTable definitions
+        mltable_def = {
+            "type": "mltable",
+            "paths": [{"file": "*.csv"}],
+            "transformations": [{"read_delimited": {"delimiter": ","}}]
+        }
+        
+        # Save MLTable definitions
+        with open(os.path.join(train_data, 'MLTable'), 'w') as f:
+            json.dump(mltable_def, f)
+        
+        with open(os.path.join(test_data, 'MLTable'), 'w') as f:
+            json.dump(mltable_def, f)
+    
+    return preprocess_and_split
+
 def create_rai_pipeline(
     compute_name: str,
     model_name: str,
     model_version: str,
     target_column_name: str,
-    train_data: Input,
-    test_data: Input,
-    rai_components: Dict
+    input_data: Input,
+    rai_components: Dict,
+    environment_id: str
 ):
-    """Create the RAI pipeline with all components
+    """Create the RAI pipeline with preprocessing and analysis"""
     
-    Args:
-        compute_name: Name of the compute cluster
-        model_name: Name of the registered model
-        target_column_name: Name of the target column
-        train_data: Training data input
-        test_data: Test data input
-        rai_components: Dictionary of RAI components
-    
-    Returns:
-        pipeline: Configured RAI pipeline
-    """
     @dsl.pipeline(
         compute=compute_name,
         description="RAI insights on EEG data",
         experiment_name=f"RAI_insights_{model_name}",
     )
     def rai_decision_pipeline(
-        target_column_name, train_data, test_data
+        target_column_name, input_data
     ):
+        # Create and run preprocessing component
+        preprocess_component = create_data_prep_component(environment_id)
+        split_data = preprocess_component(
+            input_data=input_data,
+            test_size=0.2,
+            random_state=42
+        )
+        
         expected_model_id = f"{model_name}:{model_version}"
         azureml_model_id = f"azureml:{expected_model_id}"
         
@@ -137,12 +158,11 @@ def create_rai_pipeline(
             task_type="classification",
             model_info=expected_model_id,
             model_input=Input(type=AssetTypes.MLFLOW_MODEL, path=azureml_model_id),
-            train_dataset=train_data,
-            test_dataset=test_data,
+            train_dataset=split_data.outputs.train_data,
+            test_dataset=split_data.outputs.test_data,
             target_column_name=target_column_name,
-            categorical_column_names='[]',  # Remove 'Participant' from categorical columns
-            classes='["Non-remission", "Remission"]',
-            feature_metadata='{"dropped_features": ["Participant"]}'  # Add feature metadata to drop Participant column
+            categorical_column_names='[]',  # No categorical columns after preprocessing
+            classes='["Non-remission", "Remission"]'
         )
         create_rai_job.set_limits(timeout=300)
 
@@ -174,8 +194,7 @@ def create_rai_pipeline(
     
     return rai_decision_pipeline(
         target_column_name=target_column_name,
-        train_data=train_data,
-        test_data=test_data
+        input_data=input_data
     )
 
 def main():
@@ -215,13 +234,12 @@ def main():
         
         # Get the registered MLTable
         logger.info(f"Getting registered features version: {args.version}")
-        modified_features = load_and_modify_mltable(
-            ml_client=ml_client,
-            data_name=args.data_name,
-            version=args.version,
-            drop_columns=["Participant"]  # Specify columns to drop
+        registered_features = Input(
+            type="mltable",
+            path=f"azureml:{args.data_name}:{args.version}",
+            mode="ro_mount"
         )
-            
+        
         # Create pipeline
         logger.info("Creating RAI pipeline job")
         pipeline_job = create_rai_pipeline(
@@ -229,9 +247,9 @@ def main():
             model_name=args.model_name,
             model_version=args.model_version,
             target_column_name="Remission",
-            train_data=modified_features,
-            test_data=modified_features,
-            rai_components=setup_rai_components(ml_client_registry)
+            input_data=registered_features,
+            rai_components=rai_components,
+            environment_id=args.environment_name
         )
         
         # Configure pipeline settings

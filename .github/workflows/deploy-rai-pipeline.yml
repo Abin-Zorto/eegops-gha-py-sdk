@@ -92,6 +92,7 @@ jobs:
           pipeline_path: amlws-assets/pipelinejobs/eegrai.py
           experiment_name: "dev-eegops-automl-classification"
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          environment_name: ${{ needs.get-config.outputs.environment_name }}
           compute_name: "cpu-cluster"
           model_name: "automl"
           model_version: "3"
