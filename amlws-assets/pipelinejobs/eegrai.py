@@ -83,23 +83,26 @@ def eeg_rai_pipeline(
     
     # Error analysis
     error_job = rai_error_analysis(
-        comment="Error analysis for EEG classification",
         rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
+        max_depth=3,  # Optional: depth of the error analysis tree
+        num_leaves=31,  # Optional: number of leaves in the error analysis tree
+        min_child_samples=20  # Optional: minimum samples required at a leaf node
     )
     error_job.set_limits(timeout=300)
     
     # Model explanation
     explanation_job = rai_explanation(
-        comment="Explanations for EEG classification",
-        rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
+        rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard
     )
     explanation_job.set_limits(timeout=300)
     
     # Gather insights
     rai_gather_job = rai_gather(
-        constructor=create_rai_job.outputs.rai_insights_dashboard,
-        insight_3=error_job.outputs.error_analysis,
-        insight_4=explanation_job.outputs.explanation,
+        constructor_node=create_rai_job.outputs.rai_insights_dashboard,
+        analysis_nodes=[
+            error_job.outputs.error_analysis,
+            explanation_job.outputs.explanation
+        ]
     )
     rai_gather_job.set_limits(timeout=300)
     
