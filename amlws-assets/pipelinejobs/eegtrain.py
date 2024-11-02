@@ -93,15 +93,18 @@ def eeg_train_pipeline(registered_features, model_name, target_column_name="Remi
     # Log paths for debugging
     logger.info(f"Train job output path: {train_job.outputs.model_output}")
     
+    # Create pipeline data for RAI
+    model_input = Input(type="uri_folder", path=train_job.outputs.model_output)
+    
     # RAI dashboard construction
     logger.info("Setting up RAI constructor job")
     create_rai_job = rai_constructor(
         title="EEG Analysis RAI Dashboard",
         task_type="classification",
         model_info="mlflow_model",
-        model_input=train_job.outputs.model_output,
+        model_input=model_input,  # Use the wrapped input
         train_dataset=registered_features,
-        test_dataset=registered_features,  # Using same data since we're doing LOGO CV
+        test_dataset=registered_features,
         target_column_name=target_column_name,
     )
     
@@ -110,23 +113,18 @@ def eeg_train_pipeline(registered_features, model_name, target_column_name="Remi
     
     create_rai_job.set_limits(timeout=300)
     
-    # Add error analysis
-    logger.info("Setting up error analysis job")
+    # Rest of the pipeline remains the same...
     error_job = rai_error_analysis(
         rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
     )
     error_job.set_limits(timeout=300)
     
-    # Add explanations
-    logger.info("Setting up explanation job")
     explanation_job = rai_explanation(
         rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
         comment="Feature importance and SHAP values for EEG classification model"
     )
     explanation_job.set_limits(timeout=300)
     
-    # Gather insights
-    logger.info("Setting up insights gathering job")
     rai_gather_job = rai_gather(
         constructor=create_rai_job.outputs.rai_insights_dashboard,
         insight_3=error_job.outputs.error_analysis,
@@ -134,7 +132,6 @@ def eeg_train_pipeline(registered_features, model_name, target_column_name="Remi
     )
     rai_gather_job.set_limits(timeout=300)
     
-    # Set upload mode for dashboard
     rand_path = str(uuid.uuid4())
     dashboard_path = f"azureml://datastores/workspaceblobstore/paths/{rand_path}/dashboard/"
     logger.info(f"Dashboard will be saved to: {dashboard_path}")
