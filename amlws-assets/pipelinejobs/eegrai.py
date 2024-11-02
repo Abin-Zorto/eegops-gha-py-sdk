@@ -72,7 +72,7 @@ def eeg_rai_pipeline(
         task_type="classification",
         model_info=Input(
             type="mlflow_model",
-            path=f"azureml:{model_name}:latest"
+            path=f"azureml:{model_name}:2"
         ),
         train_dataset=registered_features,
         test_dataset=registered_features,
