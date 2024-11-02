@@ -9,9 +9,30 @@ import uuid
 import time
 import logging
 from typing import Dict
+from azure.ai.ml import Dataset
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def load_and_modify_mltable(ml_client, data_name, version, drop_columns):
+    """Load MLTable, drop specified columns, and save as new MLTable."""
+    
+    # Load the dataset as a DataFrame
+    dataset = Dataset.get_by_name(ml_client.workspace, name=data_name, version=version)
+    df = dataset.to_pandas_dataframe()
+    
+    # Drop specified columns
+    df.drop(columns=drop_columns, inplace=True)
+    logger.info(f"Dropped columns: {drop_columns}")
+    
+    # Register the modified DataFrame as a new MLTable
+    modified_data_name = f"{data_name}_modified"
+    modified_dataset = Dataset.Tabular.register_pandas_dataframe(df, ml_client.workspace, modified_data_name)
+    logger.info(f"Registered modified dataset: {modified_data_name}")
+    
+    # Return new MLTable as Input type for pipeline
+    return Input(type="mltable", path=f"azureml:{modified_data_name}:{version}", mode="ro_mount")
+
 
 def parse_args():
     parser = argparse.ArgumentParser("Deploy EEG Analysis Pipeline")
@@ -179,12 +200,13 @@ def main():
         
         # Get the registered MLTable
         logger.info(f"Getting registered features version: {args.version}")
-        registered_features = Input(
-            type="mltable",
-            path=f"azureml:{args.data_name}:{args.version}",
-            mode="ro_mount"
+        modified_features = load_and_modify_mltable(
+            ml_client=ml_client,
+            data_name=args.data_name,
+            version=args.version,
+            drop_columns=["Participant"]  # Specify columns to drop
         )
-        
+            
         # Create pipeline
         logger.info("Creating RAI pipeline job")
         pipeline_job = create_rai_pipeline(
@@ -192,9 +214,9 @@ def main():
             model_name=args.model_name,
             model_version=args.model_version,
             target_column_name="Remission",
-            train_data=registered_features,
-            test_data=registered_features,
-            rai_components=rai_components
+            train_data=modified_features,
+            test_data=modified_features,
+            rai_components=setup_rai_components(ml_client_registry)
         )
         
         # Configure pipeline settings
