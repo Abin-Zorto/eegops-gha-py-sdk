@@ -102,11 +102,10 @@ def create_rai_pipeline(
             train_dataset=train_data,
             test_dataset=test_data,
             target_column_name=target_column_name,
-            categorical_column_names="[]",  # Pass as string
+            categorical_column_names='["Participant"]',  # Updated to include Participant
             classes='["Non-remission", "Remission"]'  # Pass as string
         )
         create_rai_job.set_limits(timeout=300)
-
 
         error_job = rai_components['error_analysis'](
             rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
