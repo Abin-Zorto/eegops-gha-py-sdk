@@ -170,7 +170,11 @@ def main():
     
     # Get the registered MLTable
     logger.info(f"Getting registered features version: {args.version}")
-    registered_features = Input(type="mltable", path=f"azureml:automl_features:{args.version}")
+    registered_features = Input(
+        type="mltable",
+        path=f"azureml:{args.data_name}:{args.version}",
+        mode="ro_mount"
+    )
     
     # Create pipeline
     logger.info("Creating RAI pipeline job")
