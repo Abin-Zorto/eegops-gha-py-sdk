@@ -21,7 +21,9 @@ def parse_args():
     parser.add_argument("--model_name", type=str, required=True, help="Model Name")
     parser.add_argument("--version", type=str, required=True, help="Version of registered features")
     parser.add_argument("--model_version", type=str, required=False, default="latest", help="Version of the registered model")
-    parser.add_argument("--environment_name", type=str, required=True, help="Environment to use for preprocessing")
+    parser.add_argument("--environment_name", type=str, required=False, 
+                       default="AzureML-responsibleai-0.31-ubuntu20.04-py38-cpu@latest", 
+                       help="Environment name to use for preprocessing")
     return parser.parse_args()
 
 def setup_rai_components(ml_client_registry):
@@ -61,14 +63,14 @@ def setup_rai_components(ml_client_registry):
     logger.info("RAI components setup complete")
     return components
 
-def create_data_prep_component(environment_id: str):
+def create_data_prep_component(environment_name: str):
     """Create a component to preprocess data and create train/test splits"""
     
     @command(
         name="preprocess_and_split",
         display_name="Preprocess and Split EEG Data",
         description="Removes Participant column and creates train/test splits",
-        environment=environment_id
+        environment=environment_name
     )
     def preprocess_and_split(
         input_data: str,
@@ -127,9 +129,12 @@ def create_rai_pipeline(
     target_column_name: str,
     input_data: Input,
     rai_components: Dict,
-    environment_id: str
+    environment_name: str
 ):
     """Create the RAI pipeline with preprocessing and analysis"""
+    
+    # Create preprocessing component outside the pipeline
+    preprocess_component = create_data_prep_component(environment_name)
     
     @dsl.pipeline(
         compute=compute_name,
@@ -137,10 +142,10 @@ def create_rai_pipeline(
         experiment_name=f"RAI_insights_{model_name}",
     )
     def rai_decision_pipeline(
-        target_column_name, input_data
+        target_column_name: str, 
+        input_data: Input
     ):
-        # Create and run preprocessing component
-        preprocess_component = create_data_prep_component(environment_id)
+        # Run preprocessing component
         split_data = preprocess_component(
             input_data=input_data,
             test_size=0.2,
@@ -249,7 +254,7 @@ def main():
             target_column_name="Remission",
             input_data=registered_features,
             rai_components=rai_components,
-            environment_id=args.environment_name
+            environment_name=args.environment_name
         )
         
         # Configure pipeline settings
