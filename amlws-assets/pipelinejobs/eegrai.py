@@ -91,7 +91,8 @@ def eeg_rai_pipeline(
     
     # Model explanation
     explanation_job = rai_explanation(
-        rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard
+        rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
+        comment="Model explanations for EEG classification"
     )
     explanation_job.set_limits(timeout=300)
     
