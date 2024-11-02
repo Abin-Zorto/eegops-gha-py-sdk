@@ -70,7 +70,10 @@ def eeg_rai_pipeline(
     create_rai_job = rai_constructor(
         title="EEG RAI Analysis",
         task_type="classification",
-        model_info=Input(type="uri_folder", path=f"azureml:{model_name}:1"),
+        model_info=Input(
+            type="mlflow_model",
+            path=f"azureml:{model_name}:latest"
+        ),
         train_dataset=registered_features,
         test_dataset=registered_features,
         target_column_name="Remission",
