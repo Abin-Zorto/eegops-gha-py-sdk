@@ -189,15 +189,15 @@ def save_and_register_model(model, df, model_name, output_path):
         model.predict(df.drop(['Participant', 'Remission'], axis=1))
     )
     
-    # Save model locally first using MLflow format
-    model_path = output_path / "model"
+    # Save model in MLflow format directly to the output path
+    # Note: Not using a 'model' subdirectory anymore
     mlflow.sklearn.save_model(
         sk_model=model,
-        path=str(model_path),
+        path=str(output_path),  # Save directly to output_path
         signature=signature,
         input_example=input_example
     )
-    logger.info(f"Model saved locally to: {model_path}")
+    logger.info(f"Model saved locally to: {output_path}")
     
     # Log model to MLflow tracking
     mlflow.sklearn.log_model(
