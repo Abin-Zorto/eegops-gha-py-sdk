@@ -202,12 +202,9 @@ def save_and_register_model(model: DecisionTreeClassifier, df: pd.DataFrame, mod
     )
     
     logger.info(f"Model registered with name: {model_name}")
-    logger.info(f"Model version: {registered_model.version}")
     
     # Save model info
-    model_info = {
-        "id": f"{model_name}:{registered_model.version}"
-    }
+    model_info = {"id": f"{model_name}:{registered_model.version if hasattr(registered_model, 'version') else 'unknown'}"} 
     
     with open(output_path / "model_info.json", "w") as f:
         json.dump(model_info, f)
