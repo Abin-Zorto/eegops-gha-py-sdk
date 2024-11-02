@@ -193,6 +193,14 @@ def save_and_register_model(model, df, model_name, output_path):
     """Save and register model using MLflow."""
     logger.info(f"Starting model save and registration process...")
     
+    # Add detailed path logging
+    logger.info(f"Output path (raw): {output_path}")
+    logger.info(f"Output path (absolute): {os.path.abspath(output_path)}")
+    logger.info(f"Output path contents before save: {os.listdir(output_path) if os.path.exists(output_path) else 'directory does not exist'}")
+    
+    # Wrap the sklearn model with our custom wrapper that implements predict and predict_proba
+    wrapped_model = WrappedModel(model)
+    
     # Create model signature
     input_example = df.drop(['Participant', 'Remission'], axis=1).iloc[:5]
     signature = infer_signature(
@@ -200,29 +208,35 @@ def save_and_register_model(model, df, model_name, output_path):
         model.predict(df.drop(['Participant', 'Remission'], axis=1))
     )
     
-    # Save model locally first using MLflow format
+    # Save model locally
     model_path = output_path / "model"
-    logger.info(f"Saving model locally to path: {model_path}")
-    mlflow.sklearn.save_model(
-        sk_model=model,
+    logger.info(f"Saving model to path: {model_path}")
+    logger.info(f"Model path (absolute): {os.path.abspath(model_path)}")
+    
+    mlflow.pyfunc.save_model(
         path=str(model_path),
+        python_model=wrapped_model,
         signature=signature,
-        input_example=input_example
+        input_example=input_example,
+        code_path=[__file__]
     )
-    logger.info(f"Model saved locally at: {model_path}")
-    logger.info(f"Model directory contents: {os.listdir(model_path)}")
+    
+    # Verify saved model contents
+    logger.info(f"Model directory contents after save: {os.listdir(model_path)}")
+    logger.info(f"MLmodel file exists: {os.path.exists(os.path.join(model_path, 'MLmodel'))}")
     
     # Log model to MLflow tracking
     run_id = mlflow.active_run().info.run_id
     logger.info(f"Active MLflow run ID: {run_id}")
-    mlflow.sklearn.log_model(
-        sk_model=model,
+    
+    # Use mlflow.pyfunc.log_model instead of mlflow.sklearn.log_model
+    mlflow.pyfunc.log_model(
         artifact_path="model",
+        python_model=wrapped_model,
         signature=signature,
-        input_example=input_example
+        input_example=input_example,
+        code_path=[__file__]
     )
-    logger.info(f"Model logged to MLflow with run_id: {run_id}")
-    logger.info(f"MLflow model URI: runs:/{run_id}/model")
     
     # Register the model in Azure ML model registry
     model_uri = f"runs:/{run_id}/model"
@@ -244,6 +258,16 @@ def save_and_register_model(model, df, model_name, output_path):
     with open(paths_file, 'w') as f:
         json.dump(model_paths, f, indent=2)
     logger.info(f"Saved model paths information to: {paths_file}")
+    
+    # Final verification
+    logger.info(f"Final output directory structure:")
+    for root, dirs, files in os.walk(output_path):
+        level = root.replace(str(output_path), '').count(os.sep)
+        indent = ' ' * 4 * level
+        logger.info(f"{indent}{os.path.basename(root)}/")
+        subindent = ' ' * 4 * (level + 1)
+        for f in files:
+            logger.info(f"{subindent}{f}")
     
     return registered_model
 

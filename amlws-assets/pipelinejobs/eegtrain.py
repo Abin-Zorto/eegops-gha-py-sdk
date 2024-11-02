@@ -93,17 +93,28 @@ def eeg_train_pipeline(registered_features, model_name, target_column_name="Remi
     # Log paths for debugging
     logger.info(f"Train job output path: {train_job.outputs.model_output}")
     
+    # Add detailed logging for model paths
+    logger.info(f"Train job output structure:")
+    logger.info(f"- Full path: {train_job.outputs.model_output}")
+    logger.info(f"- Output name: {train_job.outputs.model_output.name}")
+    logger.info(f"- Output path: {train_job.outputs.model_output.path}")
+    
     # RAI dashboard construction
     logger.info("Setting up RAI constructor job")
+    logger.info(f"RAI constructor model input path (before): {train_job.outputs.model_output}")
+    
     create_rai_job = rai_constructor(
         title="EEG Analysis RAI Dashboard",
         task_type="classification",
         model_info="mlflow_model",
-        model_input=train_job.outputs.model_output,  # Changed: directly use the output
+        model_input=train_job.outputs.model_output,
         train_dataset=registered_features,
         test_dataset=registered_features,
         target_column_name=target_column_name,
     )
+    
+    logger.info(f"RAI constructor job created with:")
+    logger.info(f"- Model input: {create_rai_job.inputs.model_input}")
     
     # Changed: Log the RAI job itself instead of trying to access its inputs
     logger.info(f"RAI constructor job created: {create_rai_job.name}")
