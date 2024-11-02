@@ -16,9 +16,10 @@ class ModelWrapper(mlflow.pyfunc.PythonModel):
         self.model = model
 
     def predict(self, context, model_input):
-        # The error suggests model_input is a DataFrame but we're trying to call predict on it
-        # Instead, we should use self.model to make predictions
         return self.model.predict(model_input)
+
+    def predict_proba(self, context, model_input):
+        return self.model.predict_proba(model_input)
 
 def parse_args():
     parser = argparse.ArgumentParser("train_from_features")
@@ -43,7 +44,7 @@ def main():
 
     # Train the model
     logger.info("Training the Decision Tree Classifier...")
-    clf = DecisionTreeClassifier()
+    clf = DecisionTreeClassifier(random_state=42)
     clf.fit(X, y)
     logger.info("Model training completed.")
 
