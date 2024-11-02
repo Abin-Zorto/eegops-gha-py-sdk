@@ -1,5 +1,5 @@
 import argparse
-from azure.ai.ml.entities import Data, Model, Environment
+from azure.ai.ml.entities import Data, Model
 from azure.ai.ml.constants import AssetTypes
 from azure.identity import ClientSecretCredential
 from azure.ai.ml import MLClient, Input, Output, command, dsl
@@ -21,9 +21,7 @@ def parse_args():
     parser.add_argument("--model_name", type=str, required=True, help="Model Name")
     parser.add_argument("--version", type=str, required=True, help="Version of registered features")
     parser.add_argument("--model_version", type=str, required=False, default="latest", help="Version of the registered model")
-    parser.add_argument("--environment_name", type=str, required=False, 
-                       default="AzureML-responsibleai-0.31-ubuntu20.04-py38-cpu@latest", 
-                       help="Environment name to use for preprocessing")
+    parser.add_argument("--environment_name", type=str, required=True, help="Environment name")
     return parser.parse_args()
 
 def setup_rai_components(ml_client_registry):
@@ -63,64 +61,26 @@ def setup_rai_components(ml_client_registry):
     logger.info("RAI components setup complete")
     return components
 
-def create_data_prep_component(environment_name: str):
-    """Create a component to preprocess data and create train/test splits"""
-    
-    @command(
-        name="preprocess_and_split",
-        display_name="Preprocess and Split EEG Data",
-        description="Removes Participant column and creates train/test splits",
-        environment=environment_name
-    )
-    def preprocess_and_split(
-        input_data: str,
-        train_data: str,
-        test_data: str,
-        test_size: float = 0.2,
-        random_state: int = 42
-    ):
-        import pandas as pd
-        from sklearn.model_selection import train_test_split
-        import os
-        import json
-        
-        # Read MLTable
-        df = pd.read_table(input_data)
-        
-        # Drop Participant column
-        df = df.drop(columns=['Participant'])
-        
-        # Split the data
-        train_df, test_df = train_test_split(
-            df, 
-            test_size=test_size,
-            random_state=random_state,
-            stratify=df['Remission']  # Stratify by target
-        )
-        
-        # Save train data
-        train_path = os.path.join(train_data, 'train.csv')
-        train_df.to_csv(train_path, index=False)
-        
-        # Save test data
-        test_path = os.path.join(test_data, 'test.csv')
-        test_df.to_csv(test_path, index=False)
-        
-        # Create MLTable definitions
-        mltable_def = {
-            "type": "mltable",
-            "paths": [{"file": "*.csv"}],
-            "transformations": [{"read_delimited": {"delimiter": ","}}]
+def create_split_component(environment_name):
+    """Create the data splitting component"""
+    return command(
+        name="split_data",
+        display_name="split-data",
+        code="amlws-assets/src",
+        command="python split_data.py \
+                --input_mltable ${{inputs.input_mltable}} \
+                --train_data ${{outputs.train_data}} \
+                --test_data ${{outputs.test_data}} \
+                --test_size 0.2",
+        environment=environment_name+"@latest",
+        inputs={
+            "input_mltable": Input(type="mltable")
+        },
+        outputs={
+            "train_data": Output(type="mltable"),
+            "test_data": Output(type="mltable")
         }
-        
-        # Save MLTable definitions
-        with open(os.path.join(train_data, 'MLTable'), 'w') as f:
-            json.dump(mltable_def, f)
-        
-        with open(os.path.join(test_data, 'MLTable'), 'w') as f:
-            json.dump(mltable_def, f)
-    
-    return preprocess_and_split
+    )
 
 def create_rai_pipeline(
     compute_name: str,
@@ -128,13 +88,12 @@ def create_rai_pipeline(
     model_version: str,
     target_column_name: str,
     input_data: Input,
-    rai_components: Dict,
-    environment_name: str
+    environment_name: str,
+    rai_components: Dict
 ):
-    """Create the RAI pipeline with preprocessing and analysis"""
-    
-    # Create preprocessing component outside the pipeline
-    preprocess_component = create_data_prep_component(environment_name)
+    """Create the RAI pipeline with all components"""
+    # Create the split component
+    split_data = create_split_component(environment_name)
     
     @dsl.pipeline(
         compute=compute_name,
@@ -142,36 +101,27 @@ def create_rai_pipeline(
         experiment_name=f"RAI_insights_{model_name}",
     )
     def rai_decision_pipeline(
-        target_column_name: str, 
-        input_data: Input
+        target_column_name, input_data
     ):
-        # Run preprocessing component
-        split_data = preprocess_component(
-            input_data=input_data,
-            test_size=0.2,
-            random_state=42
+        # Split the data
+        split_job = split_data(
+            input_mltable=input_data
         )
         
         expected_model_id = f"{model_name}:{model_version}"
         azureml_model_id = f"azureml:{expected_model_id}"
-        
-        logger.info(f"Using model ID: {expected_model_id}")
-        logger.info(f"Azure ML Model URI: {azureml_model_id}")
         
         create_rai_job = rai_components['constructor'](
             title="RAI dashboard EEG",
             task_type="classification",
             model_info=expected_model_id,
             model_input=Input(type=AssetTypes.MLFLOW_MODEL, path=azureml_model_id),
-            train_dataset=split_data.outputs.train_data,
-            test_dataset=split_data.outputs.test_data,
+            train_dataset=split_job.outputs.train_data,
+            test_dataset=split_job.outputs.test_data,
             target_column_name=target_column_name,
-            categorical_column_names='[]',  # No categorical columns after preprocessing
             classes='["Non-remission", "Remission"]'
         )
         create_rai_job.set_limits(timeout=300)
-
-        logger.info("RAI Insights job initialized successfully.")
 
         error_job = rai_components['error_analysis'](
             rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
@@ -253,8 +203,8 @@ def main():
             model_version=args.model_version,
             target_column_name="Remission",
             input_data=registered_features,
-            rai_components=rai_components,
-            environment_name=args.environment_name
+            environment_name=args.environment_name,
+            rai_components=rai_components
         )
         
         # Configure pipeline settings
