@@ -21,6 +21,7 @@ def parse_args():
     parser.add_argument("--model_name", type=str, required=True, help="Model Name")
     parser.add_argument("--environment_name", type=str, required=True, help="Registered Environment Name")
     parser.add_argument("--version", type=str, required=True, help="Version of registered features")
+    parser.add_argument("--model_version", type=str, required=False, default="latest", help="Version of the registered model")
     return parser.parse_args()
 
 def setup_rai_components(ml_client_registry):
@@ -63,6 +64,7 @@ def setup_rai_components(ml_client_registry):
 def create_rai_pipeline(
     compute_name: str,
     model_name: str,
+    model_version: str,
     target_column_name: str,
     train_data: Input,
     test_data: Input,
@@ -90,22 +92,26 @@ def create_rai_pipeline(
         target_column_name, train_data, test_data
     ):
         args = parse_args()
-        model_name = args.model_name
-        expected_model_id = f"{model_name}:2"
+        expected_model_id = f"{model_name}:{model_version}"
         azureml_model_id = f"azureml:{expected_model_id}"
-        # Initiate the RAIInsights
+        
+        logger.info(f"Using model ID: {expected_model_id}")
+        logger.info(f"Azure ML Model URI: {azureml_model_id}")
+        
         create_rai_job = rai_components['constructor'](
             title="RAI dashboard EEG",
             task_type="classification",
             model_info=expected_model_id,
-            model_input=Input(type=AssetTypes.MLFLOW_MODEL, path=azureml_model_id),  # Use model_input instead of model
+            model_input=Input(type=AssetTypes.MLFLOW_MODEL, path=azureml_model_id),
             train_dataset=train_data,
             test_dataset=test_data,
             target_column_name=target_column_name,
-            categorical_column_names='["Participant"]',  # Updated to include Participant
-            classes='["Non-remission", "Remission"]'  # Pass as string
+            categorical_column_names='["Participant"]',
+            classes='["Non-remission", "Remission"]'
         )
         create_rai_job.set_limits(timeout=300)
+
+        logger.info("RAI Insights job initialized successfully.")
 
         error_job = rai_components['error_analysis'](
             rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
@@ -156,8 +162,8 @@ def main():
         logger.info(f"Found compute target: {compute_target.name}")
         
         # Verify model exists
-        model = ml_client.models.get(args.model_name, label="latest")
-        logger.info(f"Found model {args.model_name} (version {model.version})")
+        model = ml_client.models.get(args.model_name, version=args.model_version)
+        logger.info(f"Found model {args.model_name} (version {model.version}) with URI: {model.path}")
         
         # Get RAI components from registry
         registry_name = "azureml"
@@ -185,6 +191,7 @@ def main():
         pipeline_job = create_rai_pipeline(
             compute_name=args.compute_name,
             model_name=args.model_name,
+            model_version=args.model_version,
             target_column_name="Remission",
             train_data=registered_features,
             test_data=registered_features,
