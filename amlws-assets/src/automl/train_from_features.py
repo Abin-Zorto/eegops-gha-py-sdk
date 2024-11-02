@@ -16,10 +16,21 @@ class ModelWrapper(mlflow.pyfunc.PythonModel):
         self.model = model
 
     def predict(self, context, model_input):
+        # For classification tasks, return probability of positive class
+        if hasattr(self.model, 'predict_proba'):
+            proba = self.model.predict_proba(model_input)
+            return proba[:, 1]  # Return probabilities for positive class
         return self.model.predict(model_input)
 
-    def predict_proba(self, context, model_input):
+    def predict_proba(self, model_input):
+        # Direct method for RAIInsights to call
         return self.model.predict_proba(model_input)
+
+    # This is the main entry point for MLflow models
+    def _predict(self, context, model_input):
+        if isinstance(model_input, pd.DataFrame):
+            return self.predict(context, model_input)
+        return self.predict(context, pd.DataFrame(model_input))
 
 def parse_args():
     parser = argparse.ArgumentParser("train_from_features")
@@ -44,8 +55,20 @@ def main():
 
     # Train the model
     logger.info("Training the Decision Tree Classifier...")
-    clf = DecisionTreeClassifier(random_state=42)
+    clf = DecisionTreeClassifier(
+        random_state=42,
+        min_samples_leaf=20  # Helps ensure better probability estimates
+    )
     clf.fit(X, y)
+    
+    # Verify probability predictions work
+    try:
+        test_proba = clf.predict_proba(X.iloc[:1])
+        logger.info(f"Probability prediction test successful: {test_proba}")
+    except Exception as e:
+        logger.error(f"Probability prediction test failed: {str(e)}")
+        raise
+
     logger.info("Model training completed.")
 
     # Wrap the trained model
