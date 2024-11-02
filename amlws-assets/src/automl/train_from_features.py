@@ -181,7 +181,7 @@ def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metri
         mlflow.log_metric(f"feature_importance_{row['Feature']}", row['Importance'])
 
 def save_and_register_model(model: DecisionTreeClassifier, df: pd.DataFrame, model_name: str, output_path: Path):
-    """Save and register model using MLflow."""
+    """Register model using MLflow."""
     # Create signature
     input_example = df.drop(['Participant', 'Remission'], axis=1).iloc[:5]
     signature = infer_signature(
@@ -192,15 +192,7 @@ def save_and_register_model(model: DecisionTreeClassifier, df: pd.DataFrame, mod
     # Create wrapped model
     wrapped_model = WrappedModel(model)
     
-    # First save the model locally using MLflow format
-    mlflow.pyfunc.save_model(
-        path=str(output_path),
-        python_model=wrapped_model,
-        signature=signature,
-        input_example=input_example
-    )
-    
-    # Now register the model in the workspace
+    # Register the model in the workspace
     registered_model = mlflow.pyfunc.log_model(
         artifact_path="model",
         python_model=wrapped_model,
@@ -219,6 +211,11 @@ def save_and_register_model(model: DecisionTreeClassifier, df: pd.DataFrame, mod
     
     with open(output_path / "model_info.json", "w") as f:
         json.dump(model_info, f)
+    
+    # Create deploy flag
+    deploy_flag = 1  # Always deploy since we're in the training pipeline
+    with open(output_path / "deploy_flag", "wb") as f:
+        f.write(deploy_flag.to_bytes(1, byteorder='big'))
     
     return registered_model
 
@@ -255,11 +252,6 @@ def main():
             model_name=args.model_name,
             output_path=output_path
         )
-        
-        # Create deploy flag
-        deploy_flag = 1  # Always deploy since we're in the training pipeline
-        with open(output_path / "deploy_flag", "wb") as f:
-            f.write(deploy_flag.to_bytes(1, byteorder='big'))
         
         # Log final success metric
         mlflow.log_metric("training_success", 1)
