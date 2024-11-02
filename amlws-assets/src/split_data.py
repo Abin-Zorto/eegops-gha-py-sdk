@@ -16,27 +16,27 @@ def parse_args():
     return parser.parse_args()
 
 def read_mltable(mltable_path):
-    """Read data from an MLTable directory, verifying file structure."""
-    # Check and log the directory contents
+    """Read data from an MLTable directory containing a Parquet file."""
     print(f"Checking directory structure for MLTable at {mltable_path}")
     print("Contents of input MLTable directory:")
     for root, dirs, files in os.walk(mltable_path):
         print(root, "contains directories:", dirs, "and files:", files)
 
-    # Look for CSV files directly in the directory
-    csv_files = list(Path(mltable_path).glob("*.csv"))
+    # Look for Parquet files directly in the directory
+    parquet_files = list(Path(mltable_path).glob("*.parquet"))
     
-    # If no CSV found, check subdirectories
-    if not csv_files:
-        print("No CSV found in root of MLTable directory, checking subdirectories...")
-        csv_files = list(Path(mltable_path).glob("**/*.csv"))
+    # If no Parquet found, check subdirectories
+    if not parquet_files:
+        print("No Parquet found in root of MLTable directory, checking subdirectories...")
+        parquet_files = list(Path(mltable_path).glob("**/*.parquet"))
     
-    if not csv_files:
-        raise FileNotFoundError(f"No CSV file found in the MLTable directory: {mltable_path}")
+    if not parquet_files:
+        raise FileNotFoundError(f"No Parquet file found in the MLTable directory: {mltable_path}")
     
-    # Load the first CSV file found
-    print(f"Loading data from: {csv_files[0]}")
-    return pd.read_csv(csv_files[0])
+    # Load the first Parquet file found
+    print(f"Loading data from: {parquet_files[0]}")
+    return pd.read_parquet(parquet_files[0])
+
 
 def main():
     mlflow.start_run()
