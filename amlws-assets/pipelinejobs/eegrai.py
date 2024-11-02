@@ -69,30 +69,29 @@ def eeg_rai_pipeline(
     # RAI dashboard construction using registered model
     logger.info("Setting up RAI constructor job")
     create_rai_job = rai_constructor(
-        title="EEG Analysis RAI Dashboard",
+        title="EEG RAI Analysis",
         task_type="classification",
-        model_info={
-            "model_type": "mlflow_model",
-            "model_name": model_name,
-            "version_label": "latest"  # Use latest version of registered model
-        },
+        model_info=Input(type="uri_folder", path=f"azureml:{model_name}:1"),
         train_dataset=registered_features,
         test_dataset=registered_features,
         target_column_name=target_column_name,
+        categorical_column_names=[],
+        classes=["Non-remission", "Remission"]
     )
     
     create_rai_job.set_limits(timeout=300)
     
     # Error analysis
     error_job = rai_error_analysis(
+        comment="Error analysis for EEG classification",
         rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
     )
     error_job.set_limits(timeout=300)
     
     # Model explanation
     explanation_job = rai_explanation(
+        comment="Explanations for EEG classification",
         rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
-        comment="Feature importance and SHAP values for EEG classification model"
     )
     explanation_job.set_limits(timeout=300)
     
@@ -116,7 +115,8 @@ def eeg_rai_pipeline(
     )
     
     return {
-        "rai_dashboard": rai_gather_job.outputs.dashboard
+        "rai_dashboard": rai_gather_job.outputs.dashboard,
+        "rai_insights": create_rai_job.outputs.rai_insights_dashboard
     }
 
 def main():
