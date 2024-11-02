@@ -95,5 +95,4 @@ jobs:
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
           compute_name: "cpu-cluster"
           model_name: "automl"
-          version: "latest"
-
+          version: "1.0.3"
