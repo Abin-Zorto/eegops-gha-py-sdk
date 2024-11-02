@@ -16,9 +16,16 @@ def parse_args():
     return parser.parse_args()
 
 def read_mltable(mltable_path):
-    """Read data from MLTable format"""
-    # Example using pd.read_csv if MLTable access is restricted
-    return pd.read_csv(mltable_path)
+    """Read data from an MLTable directory."""
+    # Look for a CSV file within the directory
+    csv_files = list(Path(mltable_path).glob("*.csv"))
+    
+    if not csv_files:
+        raise FileNotFoundError(f"No CSV file found in the MLTable directory: {mltable_path}")
+    
+    # Load the first CSV file found
+    print(f"Loading data from: {csv_files[0]}")
+    return pd.read_csv(csv_files[0])
 
 def main():
     mlflow.start_run()
