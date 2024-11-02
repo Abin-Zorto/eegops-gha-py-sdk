@@ -93,23 +93,20 @@ def eeg_train_pipeline(registered_features, model_name, target_column_name="Remi
     # Log paths for debugging
     logger.info(f"Train job output path: {train_job.outputs.model_output}")
     
-    # Create pipeline data for RAI
-    model_input = Input(type="uri_folder", path=train_job.outputs.model_output)
-    
     # RAI dashboard construction
     logger.info("Setting up RAI constructor job")
     create_rai_job = rai_constructor(
         title="EEG Analysis RAI Dashboard",
         task_type="classification",
         model_info="mlflow_model",
-        model_input=model_input,  # Use the wrapped input
+        model_input=train_job.outputs.model_output,  # Changed: directly use the output
         train_dataset=registered_features,
         test_dataset=registered_features,
         target_column_name=target_column_name,
     )
     
-    # Log RAI inputs for debugging
-    logger.info(f"RAI constructor model input path: {create_rai_job.inputs.model_input}")
+    # Changed: Log the RAI job itself instead of trying to access its inputs
+    logger.info(f"RAI constructor job created: {create_rai_job.name}")
     
     create_rai_job.set_limits(timeout=300)
     
