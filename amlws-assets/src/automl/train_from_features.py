@@ -37,6 +37,7 @@ def parse_args():
     parser.add_argument("--model_output", type=str, help="Path to model output")
     parser.add_argument("--model_name", type=str, default="eeg_classifier", help="Name under which model will be registered")
     args = parser.parse_args()
+    logger.info(f"Received arguments: {args}")
     return args
 
 def load_and_validate_data(features_path: str) -> Tuple[pd.DataFrame, Dict[str, Any], np.ndarray]:
@@ -157,10 +158,14 @@ def train_and_evaluate(df: pd.DataFrame, groups: np.ndarray) -> Tuple[DecisionTr
 def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metrics: Dict, 
                          fold_results: list, output_path: Path):
     """Save training results and artifacts."""
+    logger.info(f"Saving training results to: {output_path}")
+    
     # Save fold-wise results
     fold_results_df = pd.DataFrame(fold_results)
-    fold_results_df.to_csv(output_path / 'fold_results.csv', index=False)
-    mlflow.log_artifact(str(output_path / 'fold_results.csv'))
+    fold_results_path = output_path / 'fold_results.csv'
+    fold_results_df.to_csv(fold_results_path, index=False)
+    logger.info(f"Saved fold results to: {fold_results_path}")
+    mlflow.log_artifact(str(fold_results_path))
     
     # Save feature importance
     feature_cols = df.drop(['Participant', 'Remission'], axis=1).columns
@@ -169,19 +174,25 @@ def save_training_results(model: DecisionTreeClassifier, df: pd.DataFrame, metri
         'Importance': [float(imp) for imp in model.feature_importances_]
     }).sort_values('Importance', ascending=False)
     
-    feature_importance.to_csv(output_path / 'feature_importance.csv', index=False)
-    mlflow.log_artifact(str(output_path / 'feature_importance.csv'))
+    feature_importance_path = output_path / 'feature_importance.csv'
+    feature_importance.to_csv(feature_importance_path, index=False)
+    logger.info(f"Saved feature importance to: {feature_importance_path}")
+    mlflow.log_artifact(str(feature_importance_path))
     
     # Log metrics
+    logger.info("Logging metrics to MLflow")
     for metric_name, value in metrics.items():
         mlflow.log_metric(f"cv_{metric_name}", value)
     
     # Log top feature importances
+    logger.info("Logging top feature importances to MLflow")
     for idx, row in feature_importance.head(10).iterrows():
         mlflow.log_metric(f"feature_importance_{row['Feature']}", row['Importance'])
 
 def save_and_register_model(model, df, model_name, output_path):
     """Save and register model using MLflow."""
+    logger.info(f"Starting model save and registration process...")
+    
     # Create model signature
     input_example = df.drop(['Participant', 'Remission'], axis=1).iloc[:5]
     signature = infer_signature(
@@ -203,6 +214,7 @@ def save_and_register_model(model, df, model_name, output_path):
     
     # Log model to MLflow tracking
     run_id = mlflow.active_run().info.run_id
+    logger.info(f"Active MLflow run ID: {run_id}")
     mlflow.sklearn.log_model(
         sk_model=model,
         artifact_path="model",
@@ -219,16 +231,37 @@ def save_and_register_model(model, df, model_name, output_path):
         model_uri,
         model_name
     )
+    logger.info(f"Model registered as: {model_name}")
+    
+    # Save model path information to a JSON file for debugging
+    model_paths = {
+        "local_path": str(model_path),
+        "mlflow_run_id": run_id,
+        "mlflow_uri": model_uri,
+        "registered_name": model_name
+    }
+    paths_file = output_path / "model_paths.json"
+    with open(paths_file, 'w') as f:
+        json.dump(model_paths, f, indent=2)
+    logger.info(f"Saved model paths information to: {paths_file}")
     
     return registered_model
 
 def main():
     global start_time
     start_time = time.time()
+    
+    logger.info("Starting training pipeline")
     mlflow.start_run()
+    
     args = parse_args()
     
     try:
+        # Log input paths
+        logger.info(f"Input features path: {args.registered_features}")
+        logger.info(f"Output model path: {args.model_output}")
+        logger.info(f"Model name: {args.model_name}")
+        
         # Load data
         df, unique_participants, groups = load_and_validate_data(args.registered_features)
         
@@ -246,6 +279,8 @@ def main():
         # Save results
         output_path = Path(args.model_output)
         output_path.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created output directory: {output_path}")
+        
         save_training_results(model, df, metrics, fold_results, output_path)
         
         # Save and register model
@@ -261,10 +296,12 @@ def main():
         logger.info("Training completed successfully!")
         
     except Exception as e:
-        logger.error(f"Error in training: {str(e)}")
+        logger.error(f"Error in training: {str(e)}", exc_info=True)
         mlflow.log_metric("training_success", 0)
         raise
     finally:
+        total_time = time.time() - start_time
+        logger.info(f"Total execution time: {total_time:.2f} seconds")
         mlflow.end_run()
 
 if __name__ == "__main__":

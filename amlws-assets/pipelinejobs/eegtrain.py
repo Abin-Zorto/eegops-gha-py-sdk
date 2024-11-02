@@ -22,10 +22,12 @@ def parse_args():
     parser.add_argument("--environment_name", type=str, help="Registered Environment Name")
     parser.add_argument("--version", type=str, help="Version of registered features")
     args = parser.parse_args()
+    logger.info(f"Parsed arguments: {args}")
     return args
 
 def setup_rai_components(ml_client_registry):
     """Set up RAI components from registry"""
+    logger.info("Setting up RAI components...")
     label = "latest"
     
     rai_constructor = ml_client_registry.components.get(
@@ -33,6 +35,7 @@ def setup_rai_components(ml_client_registry):
         label=label
     )
     version = rai_constructor.version
+    logger.info(f"Using RAI components version: {version}")
     
     components = {
         'constructor': rai_constructor,
@@ -49,19 +52,23 @@ def setup_rai_components(ml_client_registry):
             version=version
         )
     }
+    logger.info("RAI components setup complete")
     return components
 
 def create_train_component(parent_dir, jobtype, environment_name):
+    logger.info(f"Creating training component with environment: {environment_name}")
     return command(
         name="train_model_from_features",
         display_name="train-model-from-features",
         code=os.path.join(parent_dir, jobtype),
         command="python train_from_features.py \
                 --registered_features ${{inputs.registered_features}} \
-                --model_output ${{outputs.model_output}}",
+                --model_output ${{outputs.model_output}} \
+                --model_name ${{inputs.model_name}}",  # Added model_name as input
         environment=environment_name+"@latest",
         inputs={
-            "registered_features": Input(type="mltable")
+            "registered_features": Input(type="mltable"),
+            "model_name": Input(type="string")  # Added model_name input
         },
         outputs={
             "model_output": Output(type="uri_folder")
@@ -72,16 +79,22 @@ def create_train_component(parent_dir, jobtype, environment_name):
     description="EEG Train Pipeline with RAI Dashboard",
     display_name="EEG-Train-Pipeline-RAI"
 )
-def eeg_train_pipeline(registered_features, target_column_name="Remission"):
+def eeg_train_pipeline(registered_features, model_name, target_column_name="Remission"):
+    """Pipeline to train model and generate RAI dashboard"""
+    logger.info("Initializing EEG training pipeline")
+    
     # Training step
+    logger.info("Setting up training job")
     train_job = train_model_from_features(
-        registered_features=registered_features
+        registered_features=registered_features,
+        model_name=model_name
     )
     
-    # Log the model output path
-    print(f"Train job output path: {train_job.outputs.model_output}")
+    # Log paths for debugging
+    logger.info(f"Train job output path: {train_job.outputs.model_output}")
     
     # RAI dashboard construction
+    logger.info("Setting up RAI constructor job")
     create_rai_job = rai_constructor(
         title="EEG Analysis RAI Dashboard",
         task_type="classification",
@@ -92,24 +105,28 @@ def eeg_train_pipeline(registered_features, target_column_name="Remission"):
         target_column_name=target_column_name,
     )
     
-    # Add logging for RAI job
-    print(f"RAI constructor model input path: {create_rai_job.inputs.model_input}")
+    # Log RAI inputs for debugging
+    logger.info(f"RAI constructor model input path: {create_rai_job.inputs.model_input}")
+    
     create_rai_job.set_limits(timeout=300)
     
     # Add error analysis
+    logger.info("Setting up error analysis job")
     error_job = rai_error_analysis(
         rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
     )
     error_job.set_limits(timeout=300)
     
-    # Add explanations with required comment parameter
+    # Add explanations
+    logger.info("Setting up explanation job")
     explanation_job = rai_explanation(
         rai_insights_dashboard=create_rai_job.outputs.rai_insights_dashboard,
-        comment="Feature importance and SHAP values for EEG classification model"  # Added required comment
+        comment="Feature importance and SHAP values for EEG classification model"
     )
     explanation_job.set_limits(timeout=300)
     
     # Gather insights
+    logger.info("Setting up insights gathering job")
     rai_gather_job = rai_gather(
         constructor=create_rai_job.outputs.rai_insights_dashboard,
         insight_3=error_job.outputs.error_analysis,
@@ -119,8 +136,11 @@ def eeg_train_pipeline(registered_features, target_column_name="Remission"):
     
     # Set upload mode for dashboard
     rand_path = str(uuid.uuid4())
+    dashboard_path = f"azureml://datastores/workspaceblobstore/paths/{rand_path}/dashboard/"
+    logger.info(f"Dashboard will be saved to: {dashboard_path}")
+    
     rai_gather_job.outputs.dashboard = Output(
-        path=f"azureml://datastores/workspaceblobstore/paths/{rand_path}/dashboard/",
+        path=dashboard_path,
         mode="upload",
         type="uri_folder",
     )
@@ -131,9 +151,11 @@ def eeg_train_pipeline(registered_features, target_column_name="Remission"):
     }
 
 def main():
+    logger.info("Starting pipeline deployment")
     args = parse_args()
-    print(args)
     
+    # Set up Azure ML client
+    logger.info("Setting up Azure ML client")
     credential = ClientSecretCredential(
         client_id=os.environ["AZURE_CLIENT_ID"],
         client_secret=os.environ["AZURE_CLIENT_SECRET"],
@@ -141,15 +163,21 @@ def main():
     )
     ml_client = MLClient.from_config(credential=credential)
     
+    # Verify compute cluster
     try:
-        print(ml_client.compute.get(args.compute_name))
-    except:
-        print("No compute found")
-        
-    parent_dir = "amlws-assets/src"
+        compute_target = ml_client.compute.get(args.compute_name)
+        logger.info(f"Found compute target: {compute_target.name}")
+    except Exception as e:
+        logger.error(f"Error accessing compute cluster: {str(e)}")
+        logger.error("No compute found")
+        raise
     
-    # Get RAI components
+    parent_dir = "amlws-assets/src"
+    logger.info(f"Using parent directory: {parent_dir}")
+    
+    # Get RAI components from registry
     registry_name = "azureml"
+    logger.info(f"Accessing registry: {registry_name}")
     ml_client_registry = MLClient(
         credential=credential,
         subscription_id=ml_client.subscription_id,
@@ -157,11 +185,14 @@ def main():
         registry_name=registry_name,
     )
     
+    # Setup components
     rai_components = setup_rai_components(ml_client_registry)
     
-    # Create training component
+    # Create training component and assign RAI components
+    logger.info("Creating pipeline components")
     global train_model_from_features
     global rai_constructor, rai_error_analysis, rai_explanation, rai_gather
+    
     train_model_from_features = create_train_component(
         parent_dir, 
         args.jobtype, 
@@ -172,26 +203,33 @@ def main():
     rai_explanation = rai_components['explanation']
     rai_gather = rai_components['gather']
     
-    # Get the registered MLTable and create pipeline
+    # Get the registered MLTable
+    logger.info(f"Getting registered features version: {args.version}")
     registered_features = Input(type="mltable", path=f"azureml:automl_features:{args.version}")
     
+    # Create pipeline
+    logger.info("Creating pipeline job")
     pipeline_job = eeg_train_pipeline(
-        registered_features=registered_features
+        registered_features=registered_features,
+        model_name=args.model_name
     )
     
-    # Set pipeline level compute
+    # Configure pipeline settings
+    logger.info("Configuring pipeline settings")
     pipeline_job.settings.default_compute = args.compute_name
-    # Set pipeline level datastore
     pipeline_job.settings.default_datastore = "workspaceblobstore"
-    # Add pipeline settings
     pipeline_job.settings.continue_on_step_failure = False
     pipeline_job.settings.force_rerun = True
     pipeline_job.settings.default_timeout = 3600
     
     # Submit and monitor pipeline job
+    logger.info(f"Submitting pipeline job to experiment: {args.experiment_name}")
     pipeline_job = ml_client.jobs.create_or_update(
         pipeline_job, experiment_name=args.experiment_name
     )
+    
+    logger.info(f"Pipeline job submitted. Job name: {pipeline_job.name}")
+    logger.info("Starting job monitoring...")
     ml_client.jobs.stream(pipeline_job.name)
 
 if __name__ == "__main__":
