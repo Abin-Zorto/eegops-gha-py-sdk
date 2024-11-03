@@ -116,65 +116,6 @@ def compute_entropy_features(data: np.ndarray) -> Dict[str, float]:
         logger.warning(f"Error computing entropy features: {str(e)}")
         return {k: np.nan for k in ['sample_entropy', 'spectral_entropy']}
 
-def compute_lyapunov(data: np.ndarray, emb_dim: int = 10, lag: int = None) -> float:
-    """
-    Compute Largest Lyapunov Exponent with robust error handling and input validation.
-    
-    Parameters:
-    -----------
-    data : np.ndarray
-        Input time series data
-    emb_dim : int
-        Embedding dimension (default: 10)
-    lag : int
-        Time delay (if None, will be automatically calculated)
-        
-    Returns:
-    --------
-    float
-        Largest Lyapunov exponent or np.nan if calculation fails
-    """
-    try:
-        # Input validation
-        if not isinstance(data, np.ndarray):
-            data = np.array(data)
-        
-        # Ensure data is float64
-        data = data.astype(np.float64)
-        
-        # Check for minimum length requirement
-        min_length = (emb_dim - 1) * (lag or 1) + 1
-        if len(data) < min_length:
-            logger.warning(f"Data length ({len(data)}) too short for embedding parameters")
-            return np.nan
-            
-        # Check for NaN/Inf values
-        if np.any(np.isnan(data)) or np.any(np.isinf(data)):
-            logger.warning("Data contains NaN or Inf values")
-            return np.nan
-            
-        # Calculate optimal lag if not provided
-        if lag is None:
-            # Use 1/10th of data length as a reasonable default
-            lag = max(1, int(len(data) / 10))
-            
-        # Ensure lag is integer
-        lag = int(lag)
-        
-        # Compute Lyapunov exponent
-        lyap = nolds.lyap_r(data, emb_dim=emb_dim, lag=lag)
-        
-        # Validate output
-        if np.isnan(lyap) or np.isinf(lyap):
-            logger.warning(f"Invalid Lyapunov exponent calculated: {lyap}")
-            return np.nan
-            
-        return lyap
-        
-    except Exception as e:
-        logger.warning(f"Lyapunov exponent calculation failed: {str(e)}")
-        return np.nan
-
 def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
     """Compute various complexity measures with validation."""
     try:
@@ -212,8 +153,14 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
             logger.warning(f"Hurst exponent calculation failed: {str(e)}")
             features['hurst'] = np.nan
         
-        # Largest Lyapunov Exponent using robust implementation
-        features['lyap_r'] = compute_lyapunov(data)
+        # Largest Lyapunov Exponent
+        try:
+            # Calculate lag based on data length, ensure it's an integer
+            lag = max(1, int(len(data)/10))
+            features['lyap_r'] = nolds.lyap_r(data, emb_dim=10)
+        except Exception as e:
+            logger.warning(f"Lyapunov exponent calculation failed: {str(e)}")
+            features['lyap_r'] = np.nan
         
         # Detrended Fluctuation Analysis
         try:
