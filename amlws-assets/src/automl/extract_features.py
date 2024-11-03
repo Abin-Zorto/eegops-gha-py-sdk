@@ -126,7 +126,7 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
         
         # Ensure data is float64 type and handle NaN/inf values
         data = np.array(data, dtype=np.float64)
-        if len(data) < 3:  # Need at least 3 points for meaningful measures
+        if len(data) < 50:  # Increased minimum length
             logger.warning("Data length too short for complexity measures")
             return {k: np.nan for k in ['hfd', 'corr_dim', 'hurst', 'lyap_r', 'dfa']}
             
@@ -155,7 +155,9 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
         
         # Largest Lyapunov Exponent
         try:
-            features['lyap_r'] = nolds.lyap_r(data, emb_dim=10)
+            lag = max(1, int(len(data)/10))
+            logger.debug(f"Computing lyap_r with emb_dim=10 and lag={lag}")
+            features['lyap_r'] = nolds.lyap_r(data, emb_dim=10, lag=lag)
         except Exception as e:
             logger.warning(f"Lyapunov exponent calculation failed: {str(e)}")
             features['lyap_r'] = np.nan
