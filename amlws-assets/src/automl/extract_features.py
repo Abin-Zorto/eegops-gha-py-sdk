@@ -117,7 +117,7 @@ def compute_entropy_features(data: np.ndarray) -> Dict[str, float]:
         return {k: np.nan for k in ['sample_entropy', 'spectral_entropy']}
 
 def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
-    """Compute various complexity measures with validation."""
+    """Compute various complexity measures with enhanced validation and logging."""
     try:
         valid, message = validate_data(data)
         if not valid:
@@ -126,10 +126,10 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
         
         # Ensure data is float64 type and handle NaN/inf values
         data = np.array(data, dtype=np.float64)
-        if len(data) < 50:  # Increased minimum length
+        if len(data) < 50:  # Increased minimum length for reliability
             logger.warning("Data length too short for complexity measures")
             return {k: np.nan for k in ['hfd', 'corr_dim', 'hurst', 'lyap_r', 'dfa']}
-            
+        
         features = {}
         
         # Higuchi Fractal Dimension
@@ -153,12 +153,23 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
             logger.warning(f"Hurst exponent calculation failed: {str(e)}")
             features['hurst'] = np.nan
         
-        # Largest Lyapunov Exponent
+        # Largest Lyapunov Exponent with Enhanced Validation
         try:
             emb_dim = 10
             lag = max(1, int(len(data) / 10))
-            logger.debug(f"Data type: {data.dtype}, Length: {len(data)}, emb_dim: {emb_dim}, lag: {lag}")
+            
+            # Explicitly ensure emb_dim and lag are Python integers
+            emb_dim = int(emb_dim)
+            lag = int(lag)
+            
+            logger.debug(f"Computing lyap_r with emb_dim={emb_dim} (type: {type(emb_dim)}), lag={lag} (type: {type(lag)})")
             features['lyap_r'] = nolds.lyap_r(data, emb_dim=emb_dim, lag=lag)
+            
+            # Additional Validation: Check if lyap_r is a finite number
+            if not np.isfinite(features['lyap_r']):
+                logger.warning(f"Computed lyap_r is not finite: {features['lyap_r']}")
+                features['lyap_r'] = np.nan
+            
         except Exception as e:
             logger.warning(f"Lyapunov exponent calculation failed: {str(e)}")
             features['lyap_r'] = np.nan
@@ -170,14 +181,14 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
             logger.warning(f"DFA calculation failed: {str(e)}")
             features['dfa'] = np.nan
         
-        # Validate output values
+        # Final Validation: Ensure all features are finite numbers
         for key, value in features.items():
             if not np.isfinite(value):
                 logger.warning(f"Invalid {key} value: {value}")
                 features[key] = np.nan
         
         return features
-        
+            
     except Exception as e:
         logger.warning(f"Error computing complexity measures: {str(e)}")
         return {k: np.nan for k in ['hfd', 'corr_dim', 'hurst', 'lyap_r', 'dfa']}
