@@ -1,4 +1,4 @@
-name: deploy-rai-pipeline
+name: deploy-window-rai-pipeline
 
 on:
   workflow_dispatch:
