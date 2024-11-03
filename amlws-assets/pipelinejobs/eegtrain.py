@@ -97,7 +97,7 @@ def main():
     
     # Get the registered MLTable
     logger.info(f"Getting registered features version: {args.version}")
-    registered_features = Input(type="mltable", path=f"azureml:automl_features:{args.version}")
+    registered_features = Input(type="mltable", path=f"azureml:eeg_features:{args.version}")
     
     # Create pipeline
     logger.info("Creating pipeline job")

@@ -4,8 +4,8 @@ inputs:
   experiment_name:
     description: 'Name of the experiment'
     required: true
-  environment_name:
-    description: 'Name of the environment'
+  data_name:
+    description: 'Name of the data asset'
     required: true
   compute_name:
     description: 'Name of the compute cluster'
@@ -15,6 +15,12 @@ inputs:
     required: true
   model_name:
     description: 'Name of the model'
+    required: true
+  model_version:
+    description: 'Version of the registered model'
+    required: false
+  environment_name:
+    description: 'Name of the registered environment'
     required: true
   azure_credentials:
     description: 'Azure credentials'
@@ -42,8 +48,10 @@ runs:
       run: |
         python ${{ inputs.pipeline_path }} \
           --experiment_name "${{ inputs.experiment_name }}" \
-          --environment_name "${{ inputs.environment_name }}" \
           --compute_name "${{ inputs.compute_name }}" \
+          --data_name "${{ inputs.data_name }}" \
           --model_name "${{ inputs.model_name }}" \
-          --version "${{ inputs.version }}"
+          --model_version "${{ inputs.model_version }}" \
+          --version "${{ inputs.version }}" \
+          --environment_name "${{ inputs.environment_name }}"
       shell: bash
