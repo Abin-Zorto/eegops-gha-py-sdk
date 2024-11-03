@@ -67,7 +67,7 @@ def create_split_component(environment_name):
         name="split_data",
         display_name="split-data",
         code="amlws-assets/src",
-        command="python split_data.py \
+        command="python split_data_patient.py \
                 --input_mltable ${{inputs.input_mltable}} \
                 --train_data ${{outputs.train_data}} \
                 --test_data ${{outputs.test_data}} \
