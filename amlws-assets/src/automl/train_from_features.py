@@ -17,8 +17,7 @@ def calculate_metrics(y_true, y_pred, y_prob):
         'accuracy': accuracy_score(y_true, y_pred),
         'precision': precision_score(y_true, y_pred),
         'recall': recall_score(y_true, y_pred),
-        'f1': f1_score(y_true, y_pred),
-        'roc_auc': roc_auc_score(y_true, y_prob)
+        'f1': f1_score(y_true, y_pred)
     }
 
 def main():
