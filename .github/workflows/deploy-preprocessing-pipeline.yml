@@ -109,8 +109,8 @@ jobs:
           compute_name: "cpu-cluster"
           model_name: "automl"
           jobtype: "automl"
-          version: "1.0.3"
+          version: "1.0.4"
           cutoff_frequency: 60
           sampling_rate: 256
-          window_seconds: 1
+          window_seconds: 2
 
