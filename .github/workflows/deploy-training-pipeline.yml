@@ -95,7 +95,7 @@ jobs:
           environment_name: ${{ needs.get-config.outputs.environment_name }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
           compute_name: "cpu-cluster"
-          model_name: "automl"
-          jobtype: "automl"
+          model_name: ${{ needs.get-config.outputs.modelname }}
+          jobtype: ${{ needs.get-config.outputs.modelname }}
           version: "1.2.0"
 
