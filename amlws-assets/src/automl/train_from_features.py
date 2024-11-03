@@ -7,6 +7,7 @@ import logging
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import datetime  # Import datetime for timestamp
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,7 +39,14 @@ def main():
     
     features_path = Path(args.registered_features)
     model_output_path = Path(args.model_output)
-    model_output_path.mkdir(parents=True, exist_ok=True)
+    
+    # **Append timestamp to model_output to ensure uniqueness**
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_model_output = model_output_path / f"model_{timestamp}"
+    
+    logger.info(f"Using unique model output path: {unique_model_output}")
+    
+    unique_model_output.mkdir(parents=True, exist_ok=True)
     
     # Load and prepare data
     logger.info(f"Loading training data from: {features_path}")
@@ -179,18 +187,18 @@ def main():
     final_clf.fit(X, y)
     
     # Save results
-    logger.info(f"Saving model and results to: {model_output_path}")
+    logger.info(f"Saving model and results to: {unique_model_output}")
     
     # Save predictions
-    patient_results_df.to_csv(model_output_path / 'patient_level_predictions.csv', index=False)
-    window_results_df.to_csv(model_output_path / 'window_level_predictions.csv', index=False)
+    patient_results_df.to_csv(unique_model_output / 'patient_level_predictions.csv', index=False)
+    window_results_df.to_csv(unique_model_output / 'window_level_predictions.csv', index=False)
     
     # Save feature importances
     feature_importance_df = pd.DataFrame({
         'feature': X.columns,
         'importance': final_clf.feature_importances_
     }).sort_values('importance', ascending=False)
-    feature_importance_df.to_csv(model_output_path / 'feature_importance.csv', index=False)
+    feature_importance_df.to_csv(unique_model_output / 'feature_importance.csv', index=False)
     
     # Log top features
     logger.info("\nTop 10 most important features:")
@@ -201,14 +209,15 @@ def main():
     signature = mlflow.models.infer_signature(X, final_clf.predict_proba(X)[:, 1])
     mlflow.sklearn.save_model(
         sk_model=final_clf,
-        path=model_output_path,
+        path=unique_model_output,
         signature=signature
     )
     
+    # **Log and Register the Model with MLflow**
     mlflow.sklearn.log_model(
         sk_model=final_clf,
         artifact_path="model",
-        registered_model_name=args.model_name
+        registered_model_name=args.model_name  # This will handle versioning automatically
     )
     
     logger.info("Training completed successfully")
