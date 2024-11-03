@@ -120,7 +120,7 @@ def create_rai_pipeline(
             test_dataset=split_job.outputs.test_data,
             target_column_name=target_column_name,
             classes='[false, true]',
-            categorical_column_names=['Remission']
+            categorical_column_names='["Remission"]'
         )
         create_rai_job.set_limits(timeout=300)
 
