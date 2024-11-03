@@ -90,7 +90,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
           pipeline_path: amlws-assets/pipelinejobs/eegtrain.py
-          experiment_name: "dev-eegops-automl-classification"
+          experiment_name: "dev-eegops-classification"
           data_name: ${{ needs.get-config.outputs.data_name }}
           environment_name: ${{ needs.get-config.outputs.environment_name }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}

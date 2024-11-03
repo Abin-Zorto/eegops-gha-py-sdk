@@ -90,11 +90,11 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
           pipeline_path: amlws-assets/pipelinejobs/eegrai.py
-          experiment_name: "dev-eegops-automl-classification"
+          experiment_name: "dev-eegops-classification"
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
           environment_name: ${{ needs.get-config.outputs.environment_name }}
           compute_name: "cpu-cluster"
-          model_name: "automl"
+          model_name: ${{ needs.get-config.outputs.modelname }}
           model_version: "7"
           version: "1.0.3"
           data_name: "automl_features"

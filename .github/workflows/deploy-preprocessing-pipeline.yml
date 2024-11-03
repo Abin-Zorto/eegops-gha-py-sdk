@@ -102,13 +102,13 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
           pipeline_path: amlws-assets/pipelinejobs/eegpreprocess.py
-          experiment_name: "dev-eegops-automl-classification"
+          experiment_name: "dev-eegops-classification"
           data_name: ${{ needs.get-config.outputs.data_name }}
           environment_name: ${{ needs.get-config.outputs.environment_name }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
           compute_name: "cpu-cluster"
-          model_name: "automl"
-          jobtype: "automl"
+          model_name: ${{ needs.get-config.outputs.modelname }}
+          jobtype: ${{ needs.get-config.outputs.modelname }}
           version: "1.0.4"
           cutoff_frequency: 60
           sampling_rate: 256
