@@ -162,12 +162,12 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
             emb_dim = int(emb_dim)
             lag = int(lag)
             
-            logger.debug(f"Computing lyap_r with emb_dim={emb_dim} (type: {type(emb_dim)}), lag={lag} (type: {type(lag)})")
+            print(f"Computing lyap_r with emb_dim={emb_dim} (type: {type(emb_dim)}), lag={lag} (type: {type(lag)})")
             features['lyap_r'] = nolds.lyap_r(data, emb_dim=emb_dim, lag=lag)
             
             # Additional Validation: Check if lyap_r is a finite number
             if not np.isfinite(features['lyap_r']):
-                logger.warning(f"Computed lyap_r is not finite: {features['lyap_r']}")
+                print(f"Computed lyap_r is not finite: {features['lyap_r']}")
                 features['lyap_r'] = np.nan
             
         except Exception as e:
