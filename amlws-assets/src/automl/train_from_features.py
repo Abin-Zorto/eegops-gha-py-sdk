@@ -7,7 +7,6 @@ import logging
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-import datetime
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,17 +34,12 @@ def main():
     parser.add_argument("--model_name", type=str, default="automl")
     args = parser.parse_args()
     
-    # Start MLflow run
     with mlflow.start_run():
         logger.info(f"Received arguments: {args}")
         
         features_path = Path(args.registered_features)
         model_output_path = Path(args.model_output)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_model_output = model_output_path / f"model_{timestamp}"
-        
-        logger.info(f"Using unique model output path: {unique_model_output}")
-        unique_model_output.mkdir(parents=True, exist_ok=True)
+        model_output_path.mkdir(parents=True, exist_ok=True)
         
         # Load and prepare data
         logger.info(f"Loading training data from: {features_path}")
@@ -211,19 +205,17 @@ def main():
         final_clf = RandomForestClassifier(random_state=42, min_samples_leaf=20)
         final_clf.fit(X, y)
         
-        # Save results
-        logger.info(f"Saving model and results to: {unique_model_output}")
-        
-        # Save predictions
-        patient_results_df.to_csv(unique_model_output / 'patient_level_predictions.csv', index=False)
-        window_results_df.to_csv(unique_model_output / 'window_level_predictions.csv', index=False)
+        # Save predictions and feature importances
+        logger.info(f"Saving results to: {model_output_path}")
+        patient_results_df.to_csv(model_output_path / 'patient_level_predictions.csv', index=False)
+        window_results_df.to_csv(model_output_path / 'window_level_predictions.csv', index=False)
         
         # Calculate and save feature importances
         feature_importance_df = pd.DataFrame({
             'feature': X.columns,
             'importance': final_clf.feature_importances_
         }).sort_values('importance', ascending=False)
-        feature_importance_df.to_csv(unique_model_output / 'feature_importance.csv', index=False)
+        feature_importance_df.to_csv(model_output_path / 'feature_importance.csv', index=False)
         
         # Log top 10 feature importances
         logger.info("\nTop 10 most important features:")
@@ -239,14 +231,8 @@ def main():
             "criterion": final_clf.criterion,
         })
         
-        # Save final model
+        # Save and log final model
         signature = mlflow.models.infer_signature(X, final_clf.predict_proba(X)[:, 1])
-        mlflow.sklearn.save_model(
-            sk_model=final_clf,
-            path=unique_model_output,
-            signature=signature
-        )
-        
         mlflow.sklearn.log_model(
             sk_model=final_clf,
             artifact_path="model",
@@ -254,8 +240,8 @@ def main():
         )
         
         # Log CSV files as artifacts
-        mlflow.log_artifact(str(unique_model_output / 'patient_level_predictions.csv'))
-        mlflow.log_artifact(str(unique_model_output / 'feature_importance.csv'))
+        mlflow.log_artifact(str(model_output_path / 'patient_level_predictions.csv'))
+        mlflow.log_artifact(str(model_output_path / 'feature_importance.csv'))
         
         logger.info("Training completed successfully")
 
