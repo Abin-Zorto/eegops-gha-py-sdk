@@ -155,8 +155,6 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
         
         # Largest Lyapunov Exponent
         try:
-            # Calculate lag based on data length, ensure it's an integer
-            lag = max(1, int(len(data)/10))
             features['lyap_r'] = nolds.lyap_r(data, emb_dim=10)
         except Exception as e:
             logger.warning(f"Lyapunov exponent calculation failed: {str(e)}")
