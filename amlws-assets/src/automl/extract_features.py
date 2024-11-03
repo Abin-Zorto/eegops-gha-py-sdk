@@ -155,9 +155,10 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
         
         # Largest Lyapunov Exponent
         try:
-            lag = max(1, int(len(data)/10))
-            logger.debug(f"Computing lyap_r with emb_dim=10 and lag={lag}")
-            features['lyap_r'] = nolds.lyap_r(data, emb_dim=10, lag=lag)
+            emb_dim = 10
+            lag = max(1, int(len(data) / 10))
+            logger.debug(f"Data type: {data.dtype}, Length: {len(data)}, emb_dim: {emb_dim}, lag: {lag}")
+            features['lyap_r'] = nolds.lyap_r(data, emb_dim=emb_dim, lag=lag)
         except Exception as e:
             logger.warning(f"Lyapunov exponent calculation failed: {str(e)}")
             features['lyap_r'] = np.nan
@@ -213,7 +214,12 @@ def compute_features(channel_data: np.ndarray, sf: int) -> Dict[str, Any]:
     """Compute all features for a channel with comprehensive logging."""
     # Ensure data is properly formatted
     try:
-        channel_data = np.array(channel_data, dtype=np.float64)
+        if not isinstance(channel_data, np.ndarray):
+            logger.warning("Data is not a NumPy array. Converting...")
+            channel_data = np.array(channel_data, dtype=np.float64)
+        elif channel_data.dtype != np.float64:
+            logger.warning(f"Data type is {channel_data.dtype}. Converting to float64...")
+            channel_data = channel_data.astype(np.float64)
         if np.any(np.isnan(channel_data)) or np.any(np.isinf(channel_data)):
             logger.warning("Channel data contains NaN or Inf values")
             channel_data = np.nan_to_num(channel_data, nan=0.0, posinf=0.0, neginf=0.0)
