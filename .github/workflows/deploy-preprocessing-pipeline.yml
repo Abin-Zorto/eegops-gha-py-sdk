@@ -94,7 +94,7 @@ jobs:
           cluster_tier: dedicated
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Run model training pipeline
+      - name: Run model preprocessing pipeline
         uses: ./.github/actions/run-pipeline
         env:
           AZURE_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
