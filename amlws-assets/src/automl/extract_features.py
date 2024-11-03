@@ -126,7 +126,7 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
         
         # Ensure data is float64 type and handle NaN/inf values
         data = np.array(data, dtype=np.float64)
-        if len(data) < 50:  # Increased minimum length for reliability
+        if len(data) < 50:  # Minimum length for reliability
             logger.warning("Data length too short for complexity measures")
             return {k: np.nan for k in ['hfd', 'corr_dim', 'hurst', 'lyap_r', 'dfa']}
         
@@ -155,18 +155,32 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
         
         # Largest Lyapunov Exponent with Enhanced Validation
         try:
+            # Ensure data is properly scaled and normalized
+            data_norm = (data - np.mean(data)) / np.std(data)
+            
+            # Calculate appropriate embedding parameters
             emb_dim = 10
-            lag = max(1, len(data) // 10)
+            # Adjust lag calculation to ensure integer result
+            lag = int(np.ceil(len(data_norm) / 100))  # Using 1% of data length
+            lag = max(1, min(lag, 20))  # Constrain lag between 1 and 20
             
-            data = np.array(data, dtype=np.float64)
-            
-            print(f"Computing lyap_r with emb_dim={emb_dim}, lag={lag}, data_type={data.dtype}")
-            features['lyap_r'] = nolds.lyap_r(data, emb_dim=emb_dim, lag=lag)
-            
-            if not np.isfinite(features['lyap_r']):
-                logger.warning(f"Computed lyap_r is not finite: {features['lyap_r']}")
+            # Ensure data length is sufficient for the chosen parameters
+            min_length = (emb_dim - 1) * lag + 1
+            if len(data_norm) < min_length:
+                logger.warning(f"Data length {len(data_norm)} insufficient for lyap_r calculation with current parameters")
                 features['lyap_r'] = np.nan
-            
+            else:
+                # Convert to contiguous array to ensure compatibility
+                data_norm = np.ascontiguousarray(data_norm)
+                
+                logger.info(f"Computing lyap_r with emb_dim={emb_dim}, lag={lag}, data_length={len(data_norm)}")
+                features['lyap_r'] = nolds.lyap_r(data_norm, emb_dim=emb_dim, lag=lag)
+                
+                # Validate result
+                if not np.isfinite(features['lyap_r']):
+                    logger.warning(f"Computed lyap_r is not finite: {features['lyap_r']}")
+                    features['lyap_r'] = np.nan
+                    
         except Exception as e:
             logger.warning(f"Lyapunov exponent calculation failed: {str(e)}")
             features['lyap_r'] = np.nan
@@ -178,10 +192,19 @@ def compute_complexity_measures(data: np.ndarray) -> Dict[str, float]:
             logger.warning(f"DFA calculation failed: {str(e)}")
             features['dfa'] = np.nan
         
-        # Final Validation: Ensure all features are finite numbers
+        # Final Validation
         for key, value in features.items():
             if not np.isfinite(value):
-                logger.warning(f"Invalid {key} value: {value}")
+                if np.isnan(value):
+                    value_type = "NaN"
+                elif value == float('inf'):
+                    value_type = "positive infinity"
+                elif value == float('-inf'):
+                    value_type = "negative infinity"
+                else:
+                    value_type = f"invalid value: {value}"
+                    
+                logger.warning(f"Replacing {key} ({value_type}) with nan")
                 features[key] = np.nan
         
         return features
