@@ -285,7 +285,7 @@ def main():
         Input(path=args.data_name + "@latest", type="uri_file"),
         args.sampling_rate,
         args.cutoff_frequency,
-        args.model_name + "_features",
+        "eeg_features",
         args.window_seconds,
         args.version
     )

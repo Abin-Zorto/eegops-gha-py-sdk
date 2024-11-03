@@ -1,4 +1,4 @@
-name: deploy-training-pipeline
+name: deploy-window-rai-pipeline
 
 on:
   workflow_dispatch:
@@ -82,20 +82,19 @@ jobs:
           cluster_tier: dedicated
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Run model training pipeline
-        uses: ./.github/actions/run-train-pipeline
+      - name: Run RAI pipeline
+        uses: ./.github/actions/run-rai-pipeline
         env:
           AZURE_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
         with:
-          pipeline_path: amlws-assets/pipelinejobs/eegtrain.py
+          pipeline_path: amlws-assets/pipelinejobs/eegwindowrai.py
           experiment_name: "dev-eegops-classification"
-          data_name: ${{ needs.get-config.outputs.data_name }}
-          environment_name: ${{ needs.get-config.outputs.environment_name }}
           azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          environment_name: ${{ needs.get-config.outputs.environment_name }}
           compute_name: "cpu-cluster"
-          model_name: "automl"
-          jobtype: "automl"
+          model_name: ${{ needs.get-config.outputs.modelname }}
+          model_version: "7"
           version: "1.0.3"
-
+          data_name: "eeg_features"
