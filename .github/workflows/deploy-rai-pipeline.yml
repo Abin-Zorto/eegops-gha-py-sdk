@@ -97,4 +97,4 @@ jobs:
           model_name: ${{ needs.get-config.outputs.modelname }}
           model_version: "7"
           version: "1.0.3"
-          data_name: "automl_features"
+          data_name: "eeg_features"
