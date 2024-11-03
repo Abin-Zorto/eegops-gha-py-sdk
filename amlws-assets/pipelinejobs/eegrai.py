@@ -119,7 +119,7 @@ def create_rai_pipeline(
             train_dataset=split_job.outputs.train_data,
             test_dataset=split_job.outputs.test_data,
             target_column_name=target_column_name,
-            classes='[False, True]',
+            classes='[false, true]',
             categorical_column_names=['Remission']
         )
         create_rai_job.set_limits(timeout=300)
