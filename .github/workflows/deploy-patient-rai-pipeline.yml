@@ -1,4 +1,4 @@
-name: deploy-window-rai-pipeline
+name: deploy-patient-rai-pipeline
 
 on:
   workflow_dispatch:
