@@ -4,7 +4,6 @@ channels:
 dependencies:
   - python=3.10
   - pip
-  - auto-sklearn
   - pip:
     - azureml-sdk==1.57.0
     - azureml-train-automl-runtime==1.57.0
@@ -49,6 +48,7 @@ dependencies:
     - scipy==1.10.0
     - nolds==0.6.1
     - imbalanced-learn
+    - auto-sklearn==0.15.0
     - >-
       git+https://github.com/microsoft/AzureML-Observability#subdirectory=aml-obs-client
     - >-
