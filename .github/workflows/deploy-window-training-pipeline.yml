@@ -1,4 +1,4 @@
-name: deploy-training-pipeline
+name: deploy-window-training-pipeline
 
 on:
   workflow_dispatch:
