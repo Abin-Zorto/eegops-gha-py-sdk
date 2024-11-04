@@ -71,7 +71,7 @@ def create_split_component(environment_name):
                 --input_mltable ${{inputs.input_mltable}} \
                 --train_data ${{outputs.train_data}} \
                 --test_data ${{outputs.test_data}} \
-                --test_size 0.2",
+                --test_size 0.4",
         environment=environment_name+"@latest",
         inputs={
             "input_mltable": Input(type="mltable")
