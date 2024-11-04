@@ -43,10 +43,10 @@ def create_train_component(parent_dir, jobtype, environment_name):
             "model_output": Output(type="uri_folder")
         }
     )
-
+args = parse_args()
 @dsl.pipeline(
     description="EEG Model Training Pipeline",
-    display_name="EEG-Train-Pipeline" + "-window"
+    display_name="EEG-Train-Pipeline" + "-" + args.jobtype
 )
 def eeg_train_pipeline(registered_features, model_name):
     """Pipeline to train model"""
