@@ -171,8 +171,8 @@ def main():
         logger.info(f"Found compute target: {compute_target.name}")
         
         # Verify model exists
-        model = ml_client.models.get(args.model_name, version=args.model_version)
-        logger.info(f"Found model {args.model_name} (version {model.version}) with URI: {model.path}")
+        model = ml_client.models.get(args.model_name + "-window", version=args.model_version)
+        logger.info(f"Found model {args.model_name + '-window'} (version {model.version}) with URI: {model.path}")
         
         # Get RAI components from registry
         registry_name = "azureml"
@@ -199,7 +199,7 @@ def main():
         logger.info("Creating RAI pipeline job")
         pipeline_job = create_rai_pipeline(
             compute_name=args.compute_name,
-            model_name=args.model_name,
+            model_name=args.model_name + "-window",
             model_version=args.model_version,
             target_column_name="Remission",
             input_data=registered_features,

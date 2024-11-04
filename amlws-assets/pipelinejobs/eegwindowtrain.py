@@ -103,7 +103,7 @@ def main():
     logger.info("Creating pipeline job")
     pipeline_job = eeg_train_pipeline(
         registered_features=registered_features,
-        model_name=args.model_name
+        model_name=args.model_name + "-window"
     )
     
     # Configure pipeline settings
