@@ -48,7 +48,7 @@ def aggregate_windows_to_patient(df):
     
     return patient_df.reset_index()
 
-def get_automl_config(train_data, label_col='Remission', time_limit_minutes=5):
+def get_automl_config(train_data, label_col='Remission', time_limit_minutes=15):
     """Create AutoML configuration"""
     return AutoMLConfig(
         task='classification',
@@ -79,7 +79,7 @@ def parse_args():
     parser.add_argument("--registered_features", type=str, help="Path to features dataset")
     parser.add_argument("--model_output", type=str, help="Path of output model")
     parser.add_argument("--model_name", type=str, help="Model name")
-    parser.add_argument("--time_limit_minutes", type=int, default=5,
+    parser.add_argument("--time_limit_minutes", type=int, default=15,
                        help="Time limit in minutes for AutoML optimization per fold")
     return parser.parse_args()
 
