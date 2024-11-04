@@ -37,19 +37,15 @@ def read_mltable(mltable_path):
 def aggregate_windows_to_patient(df):
     """
     Aggregate window-level features to patient-level features.
-    For each feature, calculate mean, std, min, max, and quartiles.
     """
-    # Separate features from metadata
     feature_cols = df.columns.difference(['Participant', 'Remission'])
     
     # Define aggregation functions
     agg_funcs = ['mean', 'std', 'min', 'max', 'median']
-    percentiles = [25, 75]  # Add quartiles
+    percentiles = [25, 75]
     
     # Create aggregation dictionary for features
     feature_aggs = {col: agg_funcs for col in feature_cols}
-    
-    # Add Remission (take first since it's same for all windows)
     feature_aggs['Remission'] = 'first'
     
     # Aggregate
@@ -64,30 +60,10 @@ def aggregate_windows_to_patient(df):
     patient_df.columns = [f"{col}_{agg}" if agg != 'first' else col 
                          for col, agg in patient_df.columns]
     
-    # Reset index to make Participant a regular column
-    patient_df = patient_df.reset_index()
-    
     # Add number of windows as a feature
     patient_df['n_windows'] = df.groupby('Participant').size()
     
-    return patient_df
-
-def split_patients(df, test_size=0.2, random_state=42):
-    """
-    Split patient-level data into train and test sets
-    """
-    train_df, test_df = train_test_split(
-        df,
-        test_size=test_size,
-        random_state=random_state,
-        stratify=df['Remission']
-    )
-    
-    # Remove Participant column from both sets
-    train_df = train_df.drop('Participant', axis=1)
-    test_df = test_df.drop('Participant', axis=1)
-    
-    return train_df, test_df
+    return patient_df.reset_index()
 
 def main():
     mlflow.start_run()
@@ -95,40 +71,34 @@ def main():
     
     # Read the MLTable
     df = read_mltable(args.input_mltable)
-    print(f"DataFrame loaded - Columns: {df.columns.tolist()}, Shape: {df.shape}")
+    print(f"Window-level data loaded - Shape: {df.shape}")
     
-    # Analyze initial patient distribution
-    n_patients = df['Participant'].nunique()
-    n_remission = df.groupby('Participant')['Remission'].first().sum()
-    print(f"\nInitial distribution:")
-    print(f"Total patients: {n_patients}")
-    print(f"Remission patients: {n_remission}")
-    print(f"Non-remission patients: {n_patients - n_remission}")
-    
-    # Aggregate to patient level
-    print("\nAggregating window-level features to patient-level...")
+    # Aggregate to patient level first
     patient_df = aggregate_windows_to_patient(df)
-    print(f"Patient-level features created: {patient_df.shape[1]} features")
+    print(f"\nAggregated to patient level - Shape: {patient_df.shape}")
+    print(f"Number of features per patient: {patient_df.shape[1]-2}")  # -2 for Participant and Remission
     
-    # Split the patient-level data
-    train_df, test_df = split_patients(
-        patient_df,
+    # Drop Participant ID before saving (not a feature)
+    train_df, test_df = train_test_split(
+        patient_df.drop('Participant', axis=1),  # Remove Participant ID
         test_size=args.test_size,
-        random_state=args.random_state
+        random_state=args.random_state,
+        stratify=patient_df['Remission']
     )
     
     print(f"\nAfter splitting:")
-    print(f"Train set: {len(train_df)} patients")
-    print(f"Test set: {len(test_df)} patients")
-    print(f"Train remission patients: {train_df['Remission'].sum()}")
-    print(f"Test remission patients: {test_df['Remission'].sum()}")
+    print(f"Train set shape: {train_df.shape}")
+    print(f"Test set shape: {test_df.shape}")
+    print(f"Train set remission patients: {train_df['Remission'].sum()}")
+    print(f"Test set remission patients: {test_df['Remission'].sum()}")
     
-    # Save train and test data as CSV
+    # Save train and test data
     train_path = Path(args.train_data)
     test_path = Path(args.test_data)
     train_path.mkdir(parents=True, exist_ok=True)
     test_path.mkdir(parents=True, exist_ok=True)
     
+    # Save as CSV
     train_df.to_csv(train_path / "data.csv", index=False)
     test_df.to_csv(test_path / "data.csv", index=False)
     
@@ -145,19 +115,22 @@ def main():
         json.dump(mltable_content, f)
     
     # Log metrics
-    mlflow.log_metric("total_patients", n_patients)
+    mlflow.log_metric("total_patients", len(patient_df))
     mlflow.log_metric("train_patients", len(train_df))
     mlflow.log_metric("test_patients", len(test_df))
+    mlflow.log_metric("total_features", train_df.shape[1]-1)  # -1 for Remission column
     mlflow.log_metric("train_remission_patients", train_df['Remission'].sum())
     mlflow.log_metric("test_remission_patients", test_df['Remission'].sum())
-    mlflow.log_metric("n_features", train_df.shape[1])
     
-    # Log some feature statistics
-    feature_stats = train_df.describe()
-    for column in feature_stats.columns:
-        if column != 'Remission':
+    # Log feature stats
+    for column in train_df.columns:
+        if column != 'Remission':  # Skip the target variable
+            stats = train_df[column].describe()
             for stat in ['mean', 'std', 'min', 'max']:
-                mlflow.log_metric(f"train_{column}_{stat}", feature_stats[column][stat])
+                mlflow.log_metric(f"train_{column}_{stat}", stats[stat])
+    
+    print("\nExample features:")
+    print(train_df.columns[:10].tolist())
     
     mlflow.end_run()
 

@@ -13,22 +13,41 @@ from collections import Counter
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def calculate_patient_prediction(window_predictions, threshold=0.3):  # Lowered threshold
+def aggregate_windows_to_patient(df):
     """
-    Convert window-level predictions to a patient-level prediction.
-    Returns both the majority vote prediction and the confidence (proportion of windows predicted as positive)
+    Aggregate window-level features to patient-level features.
+    For each feature, calculate mean, std, min, max, and quartiles.
     """
-    proportion_positive = np.mean(window_predictions)
-    prediction = 1 if proportion_positive >= threshold else 0
-    return prediction, proportion_positive
-
-def apply_smote_to_windows(X_train, y_train):
-    """Apply SMOTE to window-level data"""
-    smote = SMOTE(random_state=42)
-    X_resampled, y_resampled = smote.fit_resample(X_train, y_train)
-    logger.info(f"Original class distribution: {Counter(y_train)}")
-    logger.info(f"Resampled class distribution: {Counter(y_resampled)}")
-    return X_resampled, y_resampled
+    # Separate features from metadata
+    feature_cols = df.columns.difference(['Participant', 'Remission'])
+    
+    # Define aggregation functions
+    agg_funcs = ['mean', 'std', 'min', 'max', 'median']
+    percentiles = [25, 75]
+    
+    # Create aggregation dictionary for features
+    feature_aggs = {col: agg_funcs for col in feature_cols}
+    feature_aggs['Remission'] = 'first'
+    
+    # Aggregate
+    patient_df = df.groupby('Participant').agg(feature_aggs)
+    
+    # Add percentiles
+    for col in feature_cols:
+        for p in percentiles:
+            patient_df[(col, f'percentile_{p}')] = df.groupby('Participant')[col].quantile(p/100)
+    
+    # Flatten column names
+    patient_df.columns = [f"{col}_{agg}" if agg != 'first' else col 
+                         for col, agg in patient_df.columns]
+    
+    # Reset index to make Participant a regular column
+    patient_df = patient_df.reset_index()
+    
+    # Add number of windows as a feature
+    patient_df['n_windows'] = df.groupby('Participant').size()
+    
+    return patient_df
 
 def main():
     parser = argparse.ArgumentParser("train_from_features")
@@ -47,20 +66,28 @@ def main():
         # Load and prepare data
         logger.info(f"Loading training data from: {features_path}")
         df = pd.read_parquet(features_path / "features.parquet")
-        X = df.drop(["Participant", "Remission"], axis=1)
-        y = df["Remission"]
-        groups = df["Participant"]
+        
+        # Aggregate to patient level first
+        logger.info("Aggregating window-level features to patient-level...")
+        patient_df = aggregate_windows_to_patient(df)
+        logger.info(f"Created {patient_df.shape[1]} patient-level features")
+        
+        # Prepare for training
+        X = patient_df.drop(['Participant', 'Remission'], axis=1)
+        y = patient_df['Remission']
+        groups = patient_df['Participant']  # for LOGO CV
         
         # Calculate class weights
-        n_samples = len(groups.unique())
-        n_remission = sum(y.iloc[groups.drop_duplicates().index] == 1)
+        n_samples = len(y)
+        n_remission = sum(y == 1)
         n_non_remission = n_samples - n_remission
         
         class_weights = {
             0: 1,
-            1: n_non_remission / n_remission  # Give higher weight to minority class
+            1: n_non_remission / n_remission
         }
         
+        logger.info(f"Class distribution - Remission: {n_remission}, Non-remission: {n_non_remission}")
         logger.info(f"Using class weights: {class_weights}")
         
         # Initialize LOGO cross-validation
@@ -69,11 +96,10 @@ def main():
         logger.info(f"\nPerforming Leave-One-Group-Out cross-validation with {n_splits} splits")
         
         patient_results = []
-        window_results = []
         
         # Perform LOGO cross-validation
         for fold_idx, (train_idx, test_idx) in enumerate(logo.split(X, y, groups)):
-            test_participant = groups.iloc[test_idx].unique()[0]
+            test_participant = groups.iloc[test_idx].iloc[0]
             true_label = y.iloc[test_idx].iloc[0]
             
             logger.info(f"\nFold {fold_idx + 1}/{n_splits}")
@@ -84,55 +110,38 @@ def main():
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
             
             # Apply SMOTE to training data
-            X_train_resampled, y_train_resampled = apply_smote_to_windows(X_train, y_train)
+            smote = SMOTE(random_state=42)
+            X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
             
-            # Train model with balanced class weights and adjusted parameters
+            # Train model
             clf = RandomForestClassifier(
                 random_state=42,
-                min_samples_leaf=5,  # Reduced from 20
-                n_estimators=200,    # Increased from default
-                max_depth=10,        # Prevent overfitting
+                min_samples_leaf=2,  # Reduced since we have fewer samples now
+                n_estimators=200,
+                max_depth=10,
                 class_weight=class_weights,
                 bootstrap=True,
-                max_features='sqrt'  # Helps prevent overfitting
+                max_features='sqrt'
             )
             clf.fit(X_train_resampled, y_train_resampled)
             
             # Make predictions
-            window_probs = clf.predict_proba(X_test)[:, 1]
-            # Use probability threshold of 0.3 for window-level predictions
-            window_preds = (window_probs >= 0.3).astype(int)
-            
-            # Calculate patient-level prediction
-            patient_pred, confidence = calculate_patient_prediction(window_preds)
+            pred_prob = clf.predict_proba(X_test)[0, 1]  # Single patient prediction
+            pred_label = 1 if pred_prob >= 0.5 else 0  # Using same threshold
             
             # Store results
-            window_results.append(pd.DataFrame({
-                'participant': test_participant,
-                'true_label': true_label,
-                'window_prediction': window_preds,
-                'window_probability': window_probs,
-                'fold': fold_idx
-            }))
-            
             patient_results.append({
                 'participant': test_participant,
                 'true_label': true_label,
-                'predicted_label': patient_pred,
-                'confidence': confidence,
-                'n_windows': len(test_idx),
-                'n_windows_positive': sum(window_preds == 1),
-                'proportion_positive': confidence,
-                'correct_prediction': true_label == patient_pred
+                'predicted_label': pred_label,
+                'confidence': pred_prob,
+                'correct_prediction': true_label == pred_label
             })
             
-            logger.info(f"Windows predicted positive: {sum(window_preds == 1)}/{len(window_preds)}"
-                       f" ({confidence:.1%})")
-            logger.info(f"Patient-level prediction: {patient_pred} (true: {true_label})")
+            logger.info(f"Patient prediction: {pred_label} (confidence: {pred_prob:.3f}, true: {true_label})")
         
         # Calculate overall metrics
         patient_results_df = pd.DataFrame(patient_results)
-        window_results_df = pd.concat(window_results, ignore_index=True)
         
         metrics = {
             'accuracy': accuracy_score(
@@ -163,11 +172,11 @@ def main():
         
         # Train final model on all data
         logger.info("\nTraining final model on all data...")
-        X_final_resampled, y_final_resampled = apply_smote_to_windows(X, y)
+        X_final_resampled, y_final_resampled = smote.fit_resample(X, y)
         
         final_clf = RandomForestClassifier(
             random_state=42,
-            min_samples_leaf=5,
+            min_samples_leaf=2,
             n_estimators=200,
             max_depth=10,
             class_weight=class_weights,
@@ -178,7 +187,6 @@ def main():
         
         # Save results and model
         patient_results_df.to_csv(model_output_path / 'patient_level_predictions.csv', index=False)
-        window_results_df.to_csv(model_output_path / 'window_level_predictions.csv', index=False)
         
         feature_importance_df = pd.DataFrame({
             'feature': X.columns,
@@ -192,10 +200,13 @@ def main():
             logger.info(f"{row['feature']}: {row['importance']:.4f}")
             mlflow.log_metric(f"feature_importance_{row['feature']}", row['importance'])
         
+        # Save final model
+        signature = mlflow.models.infer_signature(X, final_clf.predict_proba(X)[:, 1])
         mlflow.sklearn.log_model(
             sk_model=final_clf,
             artifact_path="model",
-            registered_model_name=args.model_name
+            registered_model_name=args.model_name,
+            signature=signature
         )
         
         logger.info("Training completed successfully")
