@@ -63,7 +63,6 @@ def get_automl_config(train_data, label_col='Remission', time_limit_minutes=15):
         max_cores_per_iteration=-1,
         enable_onnx_compatible_models=False,
         model_explainability=True,
-        enable_ml_stats_collection=True,
         blocked_models=['TensorFlowDNN', 'TensorFlowLinearRegressor',
                        'LightGBMRegressor', 'TabularDeepLearning'],
         allowed_models=[
