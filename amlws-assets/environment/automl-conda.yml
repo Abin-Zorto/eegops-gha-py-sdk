@@ -6,7 +6,6 @@ dependencies:
   - pip
   - pip:
     - azureml-sdk==1.57.0
-    - azureml-train-automl-runtime==1.57.0
     - azureml-widgets==1.57.0
     - azureml-mlflow==1.57.0
     - azure-ai-ml==1.12.1
