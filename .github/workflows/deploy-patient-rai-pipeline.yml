@@ -96,5 +96,5 @@ jobs:
           compute_name: "cpu-cluster"
           model_name: ${{ needs.get-config.outputs.modelname }}
           model_version: "2"
-          version: "1.0.3"
+          version: "1.2.0"
           data_name: "eeg_features"
