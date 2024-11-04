@@ -16,23 +16,20 @@ logger = logging.getLogger(__name__)
 def aggregate_windows_to_patient(df):
     """
     Aggregate window-level features to patient-level features.
-    For each feature, calculate mean, std, min, max, and quartiles.
     """
-    # Separate features from metadata
     feature_cols = df.columns.difference(['Participant', 'Remission'])
     
     # Define aggregation functions
-    agg_funcs = ['mean', 'std', 'min', 'max', 'median']
-    percentiles = [25, 75]
-    
-    # Create aggregation dictionary for features
-    feature_aggs = {col: agg_funcs for col in feature_cols}
-    feature_aggs['Remission'] = 'first'
+    # Ensure zero_crossings features are treated as numeric
+    agg_funcs = {col: ['mean', 'std', 'min', 'max', 'median'] 
+                 for col in feature_cols}
+    agg_funcs['Remission'] = 'first'
     
     # Aggregate
-    patient_df = df.groupby('Participant').agg(feature_aggs)
+    patient_df = df.groupby('Participant').agg(agg_funcs)
     
     # Add percentiles
+    percentiles = [25, 75]
     for col in feature_cols:
         for p in percentiles:
             patient_df[(col, f'percentile_{p}')] = df.groupby('Participant')[col].quantile(p/100)
@@ -41,13 +38,14 @@ def aggregate_windows_to_patient(df):
     patient_df.columns = [f"{col}_{agg}" if agg != 'first' else col 
                          for col, agg in patient_df.columns]
     
-    # Reset index to make Participant a regular column
-    patient_df = patient_df.reset_index()
-    
     # Add number of windows as a feature
     patient_df['n_windows'] = df.groupby('Participant').size()
     
-    return patient_df
+    # Ensure all numeric columns are float64
+    numeric_cols = patient_df.select_dtypes(include=['number']).columns
+    patient_df[numeric_cols] = patient_df[numeric_cols].astype('float64')
+    
+    return patient_df.reset_index()
 
 def main():
     parser = argparse.ArgumentParser("train_from_features")
@@ -71,6 +69,27 @@ def main():
         logger.info("Aggregating window-level features to patient-level...")
         patient_df = aggregate_windows_to_patient(df)
         logger.info(f"Created {patient_df.shape[1]} patient-level features")
+        
+        # After aggregating to patient level
+        logger.info("Checking for missing values...")
+        
+        # Count missing values per column
+        missing_counts = patient_df.isnull().sum()
+        columns_with_missing = missing_counts[missing_counts > 0]
+        
+        if len(columns_with_missing) > 0:
+            logger.warning(f"\nFound {len(columns_with_missing)} columns with missing values:")
+            for col, count in columns_with_missing.items():
+                logger.warning(f"{col}: {count} missing values")
+                
+            # Check if missing values are from specific participants
+            rows_with_missing = patient_df[patient_df.isnull().any(axis=1)]
+            if not rows_with_missing.empty:
+                logger.warning(f"\nParticipants with missing values:")
+                for participant in rows_with_missing['Participant'].unique():
+                    missing_cols = patient_df[patient_df['Participant'] == participant].isnull().sum()
+                    missing_cols = missing_cols[missing_cols > 0]
+                    logger.warning(f"Participant {participant}: {len(missing_cols)} columns with missing values")
         
         # Prepare for training
         X = patient_df.drop(['Participant', 'Remission'], axis=1)
