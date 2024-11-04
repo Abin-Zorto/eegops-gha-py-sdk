@@ -25,6 +25,32 @@ def calculate_patient_prediction(window_predictions, threshold=0.5):
     prediction = 1 if proportion_positive >= threshold else 0
     return prediction, proportion_positive
 
+def calculate_detailed_metrics(y_true, y_pred):
+    """Calculate detailed metrics with counts"""
+    # Basic counts
+    TP = sum((y_true == 1) & (y_pred == 1))
+    TN = sum((y_true == 0) & (y_pred == 0))
+    FP = sum((y_true == 0) & (y_pred == 1))
+    FN = sum((y_true == 1) & (y_pred == 0))
+    
+    # Calculate metrics
+    accuracy = (TP + TN) / len(y_true)
+    precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+    recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    
+    return {
+        'TP': TP,
+        'TN': TN,
+        'FP': FP,
+        'FN': FN,
+        'accuracy': accuracy,
+        'precision': precision,
+        'recall': recall,
+        'f1': f1,
+        'n_samples': len(y_true)
+    }
+
 def get_classifiers():
     """Return dictionary of sklearn classifiers to try"""
     # Calculate class weights based on rough class distribution
@@ -174,34 +200,27 @@ def main(args):
         patient_results_df = pd.DataFrame(all_patient_results[name])
         window_results_df = pd.concat(all_window_results[name], ignore_index=True)
         
-        # Calculate metrics
-        metrics = {
-            'accuracy': accuracy_score(
-                patient_results_df['true_label'],
-                patient_results_df['predicted_label']
-            ),
-            'precision': precision_score(
-                patient_results_df['true_label'],
-                patient_results_df['predicted_label'],
-                zero_division=0
-            ),
-            'recall': recall_score(
-                patient_results_df['true_label'],
-                patient_results_df['predicted_label'],
-                zero_division=0
-            ),
-            'f1': f1_score(
-                patient_results_df['true_label'],
-                patient_results_df['predicted_label'],
-                zero_division=0
-            )
-        }
+        # Calculate detailed metrics
+        metrics = calculate_detailed_metrics(
+            patient_results_df['true_label'],
+            patient_results_df['predicted_label']
+        )
         
-        # Log metrics
-        logger.info(f"\nMetrics for {name}:")
+        # Log detailed metrics for each classifier
+        logger.info(f"\nDetailed Metrics for {name}:")
+        logger.info(f"True Positives (Correct Remission): {metrics['TP']}")
+        logger.info(f"True Negatives (Correct Non-Remission): {metrics['TN']}")
+        logger.info(f"False Positives (Incorrect Remission): {metrics['FP']}")
+        logger.info(f"False Negatives (Missed Remission): {metrics['FN']}")
+        logger.info(f"Accuracy: {metrics['accuracy']:.3f}")
+        logger.info(f"Precision: {metrics['precision']:.3f}")
+        logger.info(f"Recall: {metrics['recall']:.3f}")
+        logger.info(f"F1 Score: {metrics['f1']:.3f}")
+        
+        # Log metrics to MLflow
         for metric_name, value in metrics.items():
-            mlflow.log_metric(f"{name}_{metric_name}", value)
-            logger.info(f"{metric_name}: {value:.3f}")
+            if isinstance(value, (int, float)):  # Only log numeric metrics
+                mlflow.log_metric(f"{name}_{metric_name}", value)
         
         # Track best classifier based on F1 score
         if metrics['f1'] > best_f1:
@@ -217,11 +236,30 @@ def main(args):
     
     # Save results to artifacts directory
     Path(args.model_output).mkdir(parents=True, exist_ok=True)
+    
+    # Get results for best classifier
     patient_results_df = pd.DataFrame(all_patient_results[best_classifier])
     window_results_df = pd.concat(all_window_results[best_classifier], ignore_index=True)
     
+    # Save predictions
     patient_results_df.to_csv(Path(args.model_output) / 'patient_level_predictions.csv', index=False)
     window_results_df.to_csv(Path(args.model_output) / 'window_level_predictions.csv', index=False)
+    
+    # Save feature importances if available
+    if hasattr(final_model.named_steps['clf'], 'feature_importances_'):
+        feature_importance_df = pd.DataFrame({
+            'feature': X.columns,
+            'importance': final_model.named_steps['clf'].feature_importances_
+        }).sort_values('importance', ascending=False)
+        
+        # Save feature importances
+        feature_importance_df.to_csv(Path(args.model_output) / 'feature_importances.csv', index=False)
+        
+        # Log top features
+        logger.info("\nTop 10 most important features:")
+        for _, row in feature_importance_df.head(10).iterrows():
+            logger.info(f"{row['feature']}: {row['importance']:.4f}")
+            mlflow.log_metric(f"feature_importance_{row['feature']}", row['importance'])
     
     # Save model to a separate model directory
     model_save_path = Path(args.model_output) / 'model'
@@ -245,6 +283,19 @@ def main(args):
     # Log model parameters
     for param_name, param_value in final_model.named_steps['clf'].get_params().items():
         mlflow.log_param(f"best_model_{param_name}", param_value)
+    
+    # Log final metrics
+    logger.info("\nMisclassified Patients:")
+    misclassified = patient_results_df[
+        patient_results_df['true_label'] != patient_results_df['predicted_label']
+    ]
+    for _, row in misclassified.iterrows():
+        logger.info(
+            f"Participant {row['participant']}: "
+            f"True={row['true_label']}, Pred={row['predicted_label']}, "
+            f"Confidence={row['confidence']:.3f}, "
+            f"Positive Windows: {row['n_windows_positive']}/{row['n_windows']}"
+        )
     
     logger.info("Training completed successfully")
 
