@@ -47,6 +47,7 @@ dependencies:
     - pkginfo==1.11.1
     - scipy==1.10.0
     - nolds==0.6.1
+    - imbalanced-learn
     - >-
       git+https://github.com/microsoft/AzureML-Observability#subdirectory=aml-obs-client
     - >-

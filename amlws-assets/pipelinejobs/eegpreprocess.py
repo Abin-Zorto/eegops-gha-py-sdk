@@ -185,40 +185,6 @@ def main():
         }
     )
 
-    # Model training component
-    train_model = command(
-        name="train_model",
-        display_name="train-model",
-        code=os.path.join(parent_dir, args.jobtype),
-        command="python train.py \
-                --features_input ${{inputs.features_input}} \
-                --model_output ${{outputs.model_output}}",
-        environment=args.environment_name+"@latest",
-        inputs={
-            "features_input": Input(type="uri_folder")
-        },
-        outputs={
-            "model_output": Output(type="uri_folder")
-        }
-    )
-
-    # Model training component using registered features
-    train_model_from_features = command(
-        name="train_model_from_features",
-        display_name="train-model-from-features",
-        code=os.path.join(parent_dir, args.jobtype),
-        command="python train_from_features.py \
-                --registered_features ${{inputs.registered_features}} \
-                --model_output ${{outputs.model_output}}",
-        environment=args.environment_name+"@latest",
-        inputs={
-            "registered_features": Input(type="mltable")
-        },
-        outputs={
-            "model_output": Output(type="uri_folder")
-        }
-    )
-
 
     @pipeline(
         description="EEG Analysis Pipeline for Depression Classification",

@@ -27,10 +27,10 @@ def create_train_component(parent_dir, jobtype, environment_name):
     """Create the training component"""
     logger.info(f"Creating training component with environment: {environment_name}")
     return command(
-        name="train_model_from_features",
-        display_name="train-model-from-features",
+        name="train_model_from_patient_features",
+        display_name="train-model-from-patient-features",
         code=os.path.join(parent_dir, jobtype),
-        command="python train_from_features.py \
+        command="python train_from_agg_features.py \
                 --registered_features ${{inputs.registered_features}} \
                 --model_output ${{outputs.model_output}} \
                 --model_name ${{inputs.model_name}}",
