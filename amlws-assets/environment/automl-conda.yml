@@ -4,7 +4,7 @@ channels:
 dependencies:
   - python=3.10
   - pip
-  - auto-sklearn=0.14.7
+  - auto-sklearn
   - pip:
     - azureml-sdk==1.57.0
     - azureml-train-automl-runtime==1.57.0
