@@ -78,7 +78,7 @@ def parse_args():
     parser = argparse.ArgumentParser("train_from_features")
     parser.add_argument("--registered_features", type=str, help="Path to features dataset")
     parser.add_argument("--model_output", type=str, help="Path of output model")
-    parser.add_argument("--modelname", type=str, help="Model name")
+    parser.add_argument("--model_name", type=str, help="Model name")
     parser.add_argument("--time_limit_minutes", type=int, default=5,
                        help="Time limit in minutes for AutoML optimization per fold")
     return parser.parse_args()
