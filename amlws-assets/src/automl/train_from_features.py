@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import mlflow
 import logging
-from sklearn.ensemble import RandomForestClassifier
+from autosklearn.classification import AutoSklearnClassifier
 from sklearn.model_selection import LeaveOneGroupOut
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
@@ -32,6 +32,8 @@ def main():
     parser.add_argument("--registered_features", type=str)
     parser.add_argument("--model_output", type=str)
     parser.add_argument("--model_name", type=str, default="automl")
+    parser.add_argument("--time_limit", type=int, default=300, 
+                       help="Time limit in seconds for AutoML optimization per fold")
     args = parser.parse_args()
     
     with mlflow.start_run():
@@ -100,13 +102,25 @@ def main():
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
             
-            # Train model
-            clf = RandomForestClassifier(random_state=42, min_samples_leaf=20)
-            clf.fit(X_train, y_train)
+            # Initialize and train AutoML model
+            automl = AutoSklearnClassifier(
+                time_left_for_this_task=args.time_limit,
+                per_run_time_limit=args.time_limit//10,
+                ensemble_size=1,  # To ensure we get a single best model
+                metric=accuracy_score,
+                include_estimators=["random_forest", "extra_trees", "gradient_boosting", "sgd", 
+                                  "adaboost", "xgradient_boosting"],  # sklearn-compatible models
+                include_preprocessors=["no_preprocessing", "select_percentile", "pca"],
+                resampling_strategy='holdout',
+                resampling_strategy_arguments={'train_size': 1},
+                random_state=42
+            )
+            
+            automl.fit(X_train, y_train)
             
             # Make predictions on all windows
-            window_probs = clf.predict_proba(X_test)[:, 1]
-            window_preds = clf.predict(X_test)
+            window_probs = automl.predict_proba(X_test)[:, 1]
+            window_preds = automl.predict(X_test)
             
             # Calculate patient-level prediction
             patient_pred, confidence = calculate_patient_prediction(window_preds)
@@ -130,7 +144,8 @@ def main():
                 'n_windows_positive': sum(window_preds == 1),
                 'n_windows_negative': sum(window_preds == 0),
                 'proportion_positive': confidence,
-                'correct_prediction': true_label == patient_pred
+                'correct_prediction': true_label == patient_pred,
+                'best_model': automl.show_models().iloc[0]['type']  # Log best model type
             }
             patient_results.append(patient_result)
             
@@ -141,6 +156,7 @@ def main():
                             patient_result['n_windows_positive'] / patient_result['n_windows'])
             
             # Log fold results
+            logger.info(f"Best model for fold: {patient_result['best_model']}")
             logger.info(f"Windows predicted positive: {patient_result['n_windows_positive']}/{patient_result['n_windows']}" 
                        f" ({patient_result['proportion_positive']:.1%})")
             logger.info(f"Patient-level prediction: {patient_pred} (true: {true_label})")
@@ -202,46 +218,47 @@ def main():
         
         # Train final model on all data
         logger.info("\nTraining final model on all data...")
-        final_clf = RandomForestClassifier(random_state=42, min_samples_leaf=20)
-        final_clf.fit(X, y)
+        final_automl = AutoSklearnClassifier(
+            time_left_for_this_task=args.time_limit * 2,  # Give more time for final model
+            per_run_time_limit=args.time_limit//5,
+            ensemble_size=1,
+            metric=accuracy_score,
+            include_estimators=["random_forest", "extra_trees", "gradient_boosting", "sgd", 
+                              "adaboost", "xgradient_boosting"],
+            include_preprocessors=["no_preprocessing", "select_percentile", "pca"],
+            resampling_strategy='holdout',
+            resampling_strategy_arguments={'train_size': 1},
+            random_state=42
+        )
+        final_automl.fit(X, y)
         
-        # Save predictions and feature importances
+        # Save predictions
         logger.info(f"Saving results to: {model_output_path}")
         patient_results_df.to_csv(model_output_path / 'patient_level_predictions.csv', index=False)
         window_results_df.to_csv(model_output_path / 'window_level_predictions.csv', index=False)
         
-        # Calculate and save feature importances
-        feature_importance_df = pd.DataFrame({
-            'feature': X.columns,
-            'importance': final_clf.feature_importances_
-        }).sort_values('importance', ascending=False)
-        feature_importance_df.to_csv(model_output_path / 'feature_importance.csv', index=False)
-        
-        # Log top 10 feature importances
-        logger.info("\nTop 10 most important features:")
-        for idx, row in feature_importance_df.head(10).iterrows():
-            logger.info(f"{row['feature']}: {row['importance']:.4f}")
-            mlflow.log_metric(f"feature_importance_{row['feature']}", row['importance'])
-        
-        # Log model parameters
+        # Log best model details
+        best_model_stats = final_automl.show_models().iloc[0]
         mlflow.log_params({
-            "random_state": 42,
-            "min_samples_leaf": 20,
-            "n_estimators": final_clf.n_estimators,
-            "criterion": final_clf.criterion,
+            "best_model_type": best_model_stats['type'],
+            "best_model_accuracy": best_model_stats['cost'],
+            "automl_time_limit": args.time_limit,
         })
         
-        # Save and log final model
-        signature = mlflow.models.infer_signature(X, final_clf.predict_proba(X)[:, 1])
+        # Save leaderboard
+        leaderboard = final_automl.leaderboard()
+        leaderboard.to_csv(model_output_path / 'model_leaderboard.csv', index=False)
+        
+        # Log model
         mlflow.sklearn.log_model(
-            sk_model=final_clf,
+            sk_model=final_automl,
             artifact_path="model",
             registered_model_name=args.model_name
         )
         
         # Log CSV files as artifacts
         mlflow.log_artifact(str(model_output_path / 'patient_level_predictions.csv'))
-        mlflow.log_artifact(str(model_output_path / 'feature_importance.csv'))
+        mlflow.log_artifact(str(model_output_path / 'model_leaderboard.csv'))
         
         logger.info("Training completed successfully")
 
