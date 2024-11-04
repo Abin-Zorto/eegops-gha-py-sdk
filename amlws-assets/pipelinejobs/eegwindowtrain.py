@@ -46,7 +46,7 @@ def create_train_component(parent_dir, jobtype, environment_name):
 
 @dsl.pipeline(
     description="EEG Model Training Pipeline",
-    display_name="EEG-Train-Pipeline"
+    display_name="EEG-Train-Pipeline" + "-window"
 )
 def eeg_train_pipeline(registered_features, model_name):
     """Pipeline to train model"""
