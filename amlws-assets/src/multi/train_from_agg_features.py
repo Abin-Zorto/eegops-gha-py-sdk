@@ -12,6 +12,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
+from sklearn.ensemble import ExtraTreesClassifier, AdaBoostClassifier
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.linear_model import SGDClassifier
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -85,7 +90,7 @@ def get_classifiers():
             ('scaler', StandardScaler()),
             ('clf', RandomForestClassifier(
                 n_estimators=200,
-                min_samples_leaf=2,  # Reduced since we have fewer samples
+                min_samples_leaf=2,
                 class_weight=class_weights,
                 random_state=42
             ))
@@ -94,7 +99,7 @@ def get_classifiers():
             ('scaler', StandardScaler()),
             ('clf', GradientBoostingClassifier(
                 n_estimators=200,
-                min_samples_leaf=1,  # Reduced since we have fewer samples
+                min_samples_leaf=1,
                 max_depth=5,
                 random_state=42
             ))
@@ -104,6 +109,76 @@ def get_classifiers():
             ('clf', LogisticRegression(
                 max_iter=1000,
                 class_weight=class_weights,
+                random_state=42
+            ))
+        ]),
+        'extra_trees': Pipeline([
+            ('scaler', StandardScaler()),
+            ('clf', ExtraTreesClassifier(
+                n_estimators=200,
+                min_samples_leaf=2,
+                class_weight=class_weights,
+                random_state=42
+            ))
+        ]),
+        'ada_boost': Pipeline([
+            ('scaler', StandardScaler()),
+            ('clf', AdaBoostClassifier(
+                n_estimators=100,
+                learning_rate=0.1,
+                random_state=42
+            ))
+        ]),
+        'svm_rbf': Pipeline([
+            ('scaler', StandardScaler()),
+            ('clf', SVC(
+                kernel='rbf',
+                class_weight=class_weights,
+                probability=True,
+                random_state=42
+            ))
+        ]),
+        'svm_linear': Pipeline([
+            ('scaler', StandardScaler()),
+            ('clf', SVC(
+                kernel='linear',
+                class_weight=class_weights,
+                probability=True,
+                random_state=42
+            ))
+        ]),
+        'knn': Pipeline([
+            ('scaler', StandardScaler()),
+            ('clf', KNeighborsClassifier(
+                n_neighbors=3,  # Small number due to few samples
+                weights='distance'
+            ))
+        ]),
+        'decision_tree': Pipeline([
+            ('scaler', StandardScaler()),
+            ('clf', DecisionTreeClassifier(
+                min_samples_leaf=2,
+                class_weight=class_weights,
+                random_state=42
+            ))
+        ]),
+        'logistic_regression_l1': Pipeline([
+            ('scaler', StandardScaler()),
+            ('clf', LogisticRegression(
+                penalty='l1',
+                solver='liblinear',
+                class_weight=class_weights,
+                max_iter=1000,
+                random_state=42
+            ))
+        ]),
+        'sgd': Pipeline([
+            ('scaler', StandardScaler()),
+            ('clf', SGDClassifier(
+                loss='modified_huber',  # Enables probability estimates
+                penalty='elasticnet',
+                class_weight=class_weights,
+                max_iter=1000,
                 random_state=42
             ))
         ])
