@@ -27,12 +27,16 @@ def calculate_patient_prediction(window_predictions, threshold=0.5):
 
 def get_classifiers():
     """Return dictionary of sklearn classifiers to try"""
+    # Calculate class weights based on rough class distribution
+    class_weights = {0: 1, 1: 2}  # Give more weight to minority class
+    
     return {
         'random_forest': Pipeline([
             ('scaler', StandardScaler()),
             ('clf', RandomForestClassifier(
                 n_estimators=200,
                 min_samples_leaf=20,
+                class_weight=class_weights,
                 random_state=42
             ))
         ]),
@@ -40,7 +44,8 @@ def get_classifiers():
             ('scaler', StandardScaler()),
             ('clf', GradientBoostingClassifier(
                 n_estimators=200,
-                min_samples_leaf=20,
+                min_samples_leaf=10,
+                max_depth=5,
                 random_state=42
             ))
         ]),
@@ -48,6 +53,7 @@ def get_classifiers():
             ('scaler', StandardScaler()),
             ('clf', LogisticRegression(
                 max_iter=1000,
+                class_weight=class_weights,
                 random_state=42
             ))
         ])
@@ -197,12 +203,6 @@ def main(args):
             mlflow.log_metric(f"{name}_{metric_name}", value)
             logger.info(f"{metric_name}: {value:.3f}")
         
-        # Save results
-        patient_results_df.to_csv(Path(args.model_output) / f'{name}_patient_level_predictions.csv', 
-                                index=False)
-        window_results_df.to_csv(Path(args.model_output) / f'{name}_window_level_predictions.csv', 
-                               index=False)
-        
         # Track best classifier based on F1 score
         if metrics['f1'] > best_f1:
             best_f1 = metrics['f1']
@@ -215,11 +215,30 @@ def main(args):
     final_model = classifiers[best_classifier]
     final_model.fit(X, y)
     
-    # Save best model using sklearn format
+    # Save results to artifacts directory
+    Path(args.model_output).mkdir(parents=True, exist_ok=True)
+    patient_results_df = pd.DataFrame(all_patient_results[best_classifier])
+    window_results_df = pd.concat(all_window_results[best_classifier], ignore_index=True)
+    
+    patient_results_df.to_csv(Path(args.model_output) / 'patient_level_predictions.csv', index=False)
+    window_results_df.to_csv(Path(args.model_output) / 'window_level_predictions.csv', index=False)
+    
+    # Save model to a separate model directory
+    model_save_path = Path(args.model_output) / 'model'
+    
+    # Save model using sklearn format
     signature = infer_signature(X, final_model.predict_proba(X)[:, 1])
     mlflow.sklearn.save_model(
         sk_model=final_model,
-        path=args.model_output,
+        path=model_save_path,
+        signature=signature
+    )
+    
+    # Log the model in MLflow
+    mlflow.sklearn.log_model(
+        sk_model=final_model,
+        artifact_path="model",
+        registered_model_name=args.model_name,
         signature=signature
     )
     
