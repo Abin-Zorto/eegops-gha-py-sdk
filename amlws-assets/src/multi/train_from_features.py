@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def calculate_patient_prediction(window_predictions, threshold=0.3):
+def calculate_patient_prediction(window_predictions, threshold=0.5):
     """
     Convert window-level predictions to a patient-level prediction.
     Returns both the majority vote prediction and the confidence (proportion of windows predicted as positive)
