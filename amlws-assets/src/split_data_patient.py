@@ -41,17 +41,16 @@ def aggregate_windows_to_patient(df):
     feature_cols = df.columns.difference(['Participant', 'Remission'])
     
     # Define aggregation functions
-    agg_funcs = ['mean', 'std', 'min', 'max', 'median']
-    percentiles = [25, 75]
-    
-    # Create aggregation dictionary for features
-    feature_aggs = {col: agg_funcs for col in feature_cols}
-    feature_aggs['Remission'] = 'first'
+    # Ensure zero_crossings features are treated as numeric
+    agg_funcs = {col: ['mean', 'std', 'min', 'max', 'median'] 
+                 for col in feature_cols}
+    agg_funcs['Remission'] = 'first'
     
     # Aggregate
-    patient_df = df.groupby('Participant').agg(feature_aggs)
+    patient_df = df.groupby('Participant').agg(agg_funcs)
     
     # Add percentiles
+    percentiles = [25, 75]
     for col in feature_cols:
         for p in percentiles:
             patient_df[(col, f'percentile_{p}')] = df.groupby('Participant')[col].quantile(p/100)
@@ -62,6 +61,10 @@ def aggregate_windows_to_patient(df):
     
     # Add number of windows as a feature
     patient_df['n_windows'] = df.groupby('Participant').size()
+    
+    # Ensure all numeric columns are float64
+    numeric_cols = patient_df.select_dtypes(include=['number']).columns
+    patient_df[numeric_cols] = patient_df[numeric_cols].astype('float64')
     
     return patient_df.reset_index()
 
@@ -122,12 +125,15 @@ def main():
     mlflow.log_metric("train_remission_patients", train_df['Remission'].sum())
     mlflow.log_metric("test_remission_patients", test_df['Remission'].sum())
     
-    # Log feature stats
-    for column in train_df.columns:
-        if column != 'Remission':  # Skip the target variable
-            stats = train_df[column].describe()
-            for stat in ['mean', 'std', 'min', 'max']:
-                mlflow.log_metric(f"train_{column}_{stat}", stats[stat])
+    # Log summary statistics across all features instead of individual feature stats
+    feature_cols = [col for col in train_df.columns if col != 'Remission']
+    feature_stats = train_df[feature_cols].describe()
+    
+    # Log average statistics across all features
+    mlflow.log_metric("train_features_mean_avg", feature_stats.loc['mean'].mean())
+    mlflow.log_metric("train_features_std_avg", feature_stats.loc['std'].mean())
+    mlflow.log_metric("train_features_min_avg", feature_stats.loc['min'].mean())
+    mlflow.log_metric("train_features_max_avg", feature_stats.loc['max'].mean())
     
     print("\nExample features:")
     print(train_df.columns[:10].tolist())
