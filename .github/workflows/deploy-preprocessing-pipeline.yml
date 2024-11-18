@@ -109,7 +109,7 @@ jobs:
           compute_name: "cpu-cluster"
           model_name: ${{ needs.get-config.outputs.modelname }}
           jobtype: ${{ needs.get-config.outputs.modelname }}
-          version: "1.2.0"
+          version: "2.2.0"
           cutoff_frequency: 60
           sampling_rate: 256
           window_seconds: 2

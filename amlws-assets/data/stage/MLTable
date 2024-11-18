@@ -1,7 +1,0 @@
-paths:
-  - file: ./stage.csv
-transformations:
-  - read_delimited_files:
-      delimiter: ','
-      encoding: 'ascii'
-
