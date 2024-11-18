@@ -268,9 +268,9 @@ def compute_features(channel_data: np.ndarray, sf: int) -> Dict[str, Any]:
     feature_computation_times['complexity'] = time.time() - start_time
     
     # Add statistical features
-    start_time = time.time()
-    features.update(compute_statistical_features(channel_data))
-    feature_computation_times['statistical'] = time.time() - start_time
+    #start_time = time.time()
+    #features.update(compute_statistical_features(channel_data))
+    #feature_computation_times['statistical'] = time.time() - start_time
     
     # Add entropy features
     start_time = time.time()
