@@ -222,6 +222,9 @@ def main(args):
             if isinstance(value, (int, float)):  # Only log numeric metrics
                 mlflow.log_metric(f"{name}_{metric_name}", value)
         
+        # Save predictions
+        window_results_df.to_csv(Path(args.model_output) / f'{name}_window_predictions.csv', index=False)
+        
         # Track best classifier based on F1 score
         if metrics['f1'] > best_f1:
             best_f1 = metrics['f1']
